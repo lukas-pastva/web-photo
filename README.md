@@ -59,11 +59,7 @@ spec:
                     value: "100"
                 - name: THUMBNAIL_QUALITY
                     value: "60"
-                serviceAccountAnnotations:
                 vault.hashicorp.com/alias-metadata-env: photo-lukas/photo-lukas
-                # volumeMountsFull:
-                #   - mountPath: /dev/fuse
-                #     name: dev-fuse
                 podSecurityContext:
                 privileged: true
                 capabilities:

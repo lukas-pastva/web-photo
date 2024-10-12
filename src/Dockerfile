@@ -33,9 +33,5 @@ COPY . .
 # Expose port
 EXPOSE 5000
 
-# Add non-root user for better security (optional but recommended)
-RUN adduser --disabled-password --gecos '' appuser
-USER appuser
-
 # Run the application
 CMD ["python", "app.py"]

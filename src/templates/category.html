@@ -1,0 +1,256 @@
+<!-- templates/category.html -->
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ category }}</h2>
+<div class="mb-3">
+    <!-- Upload Button -->
+    <a href="{{ url_for('upload_file', category=category) }}" class="btn btn-success btn-lg">Upload</a>
+    
+    <!-- Delete Button -->
+    <form action="{{ url_for('delete_category', category=category) }}" 
+          method="post" 
+          class="d-inline-block ml-2" 
+          onsubmit="return confirm('Are you sure you want to delete this category? This action cannot be undone.');">
+        <button type="submit" class="btn btn-danger btn-lg">Delete Category</button>
+    </form>
+</div>
+<!-- Download All Files Buttons -->
+<div class="btn-group btn-group-sm btn-block mb-3" role="group" aria-label="Download All Sizes">
+    <a href="{{ url_for('download_category', category=category, size='source') }}" class="btn btn-primary" title="Download All Original">↓ original</a>
+    <a href="{{ url_for('download_category', category=category, size='largest') }}" class="btn btn-info" title="Download All Large">↓ large</a>
+    <a href="{{ url_for('download_category', category=category, size='medium') }}" class="btn btn-secondary" title="Download All Medium">↓ medium</a>
+    <!-- Download Videos Button -->
+    <a href="{{ url_for('download_videos', category=category) }}" class="btn btn-warning" title="Download Videos">↓ videos</a>
+</div>
+
+<!-- Gallery Container with a unique ID -->
+<div class="row" id="gallery">
+    {% set mime_types = {
+        '.mp4': 'video/mp4',
+        '.mov': 'video/quicktime',
+        '.avi': 'video/x-msvideo',
+        '.mkv': 'video/x-matroska'
+    } %}    
+    {% for file in files %}
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="card mb-3">
+            {% if file.ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'] %}
+                <!-- Gallery Item -->
+                <a href="{{ url_for('uploaded_file', filename=category + '/largest/' + file.filename) }}" 
+                   data-pswp-title="{{ file.filename }}" 
+                   data-pswp-width="{{ file.width }}" 
+                   data-pswp-height="{{ file.height }}" 
+                   class="gallery-item">
+                    <img src="{{ url_for('uploaded_file', filename=category + '/thumbnail/' + file.name + '.jpeg') }}" 
+                         class="card-img-top" 
+                         alt="{{ file.filename }}" 
+                         loading="lazy">
+                </a>
+            {% elif file.ext in ['.mp4', '.mov', '.avi', '.mkv'] %}
+            <!-- Display video -->
+            <video class="card-img-top" controls preload="metadata">
+                <source src="{{ url_for('uploaded_file', filename=category + '/source/' + file.filename) }}" 
+                        type="{{ mime_types.get(file.ext, 'video/mp4') }}">
+                Your browser does not support the video tag.
+            </video>
+            
+            {% else %}
+                <!-- Unknown file type -->
+                <div class="card-img-top text-center">
+                    <span class="text-muted">Unsupported file type</span>
+                </div>
+            {% endif %}
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Download Buttons">
+                    {% if file.ext in ['.mp4', '.mov', '.avi', '.mkv'] %}
+                        <!-- For videos, only source download -->
+                        <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" 
+                           class="btn btn-primary btn-sm" 
+                           download 
+                           title="Download Video">L</a>
+                    {% else %}
+                        <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" 
+                           class="btn btn-primary btn-sm" 
+                           download 
+                           title="Source (L)">L</a>
+                        <a href="{{ url_for('download_single', category=category, size='largest', filename=file.filename) }}" 
+                           class="btn btn-info btn-sm" 
+                           download 
+                           title="Largest (M)">M</a>
+                        <a href="{{ url_for('download_single', category=category, size='medium', filename=file.filename) }}" 
+                           class="btn btn-secondary btn-sm" 
+                           download 
+                           title="Medium (S)">S</a>
+                    {% endif %}
+                </div>
+                <!-- Delete Button -->
+                <form action="{{ url_for('delete_photo', category=category, filename=file.filename) }}" 
+                      method="post" 
+                      class="mb-0 delete-form" 
+                      data-filename="{{ file.filename }}">
+                    <button type="submit" class="btn btn-danger btn-sm" title="Delete">X</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p>No files in this category.</p>
+    {% endfor %}
+</div>
+
+<!-- PhotoSwipe Container -->
+<div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
+    <!-- Background -->
+    <div class="pswp__bg"></div>
+    <!-- Slides wrapper -->
+    <div class="pswp__scroll-wrap">
+        <!-- Container that holds slides -->
+        <div class="pswp__container">
+            <!-- Individual slides -->
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+            <div class="pswp__item"></div>
+        </div>
+        <!-- Default UI -->
+        <div class="pswp__ui pswp__ui--hidden">
+            <div class="pswp__top-bar">
+                <!-- Close button -->
+                <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+                <!-- Share button -->
+                <button class="pswp__button pswp__button--share" title="Share"></button>
+                <!-- Fullscreen button -->
+                <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+                <!-- Zoom button -->
+                <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
+                <!-- Preloader -->
+                <div class="pswp__preloader">
+                    <div class="pswp__preloader__icn">
+                      <div class="pswp__preloader__cut">
+                        <div class="pswp__preloader__donut"></div>
+                      </div>
+                    </div>
+                </div>
+                <!-- Counter -->
+                <div class="pswp__counter"></div>
+            </div>
+            <!-- Navigation -->
+            <div class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+            </div>
+            <div class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
+            </div>
+            <!-- Caption -->
+            <div class="pswp__caption">
+                <div class="pswp__caption__center"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Dialog -->
+<dialog id="delete-confirmation-dialog">
+    <form method="dialog">
+        <p id="dialog-text">Are you sure you want to delete this item?</p>
+        <menu>
+            <button value="cancel">Cancel</button>
+            <button id="confirm-delete" value="default">Delete</button>
+        </menu>
+    </form>
+</dialog>
+
+<!-- JavaScript to Initialize PhotoSwipe -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteForms = document.querySelectorAll('.delete-form');
+    const dialog = document.getElementById('delete-confirmation-dialog');
+    const dialogText = document.getElementById('dialog-text');
+    const confirmDeleteButton = document.getElementById('confirm-delete');
+    let currentForm = null;
+
+    // Select the PhotoSwipe container
+    const pswpElement = document.querySelectorAll('.pswp')[0];
+    const uiElement = PhotoSwipeUI_Default; // PhotoSwipe 4.x UI
+
+    // Collect all gallery items
+    const galleryLinks = document.querySelectorAll('.gallery-item');
+
+    // Array to hold all gallery items
+    const items = [];
+
+    galleryLinks.forEach(link => {
+        const src = link.getAttribute('href');
+        const title = link.getAttribute('data-pswp-title');
+        const width = parseInt(link.getAttribute('data-pswp-width')) || 1024;  // Fallback width
+        const height = parseInt(link.getAttribute('data-pswp-height')) || 768; // Fallback height
+
+        items.push({
+            src: src,
+            w: width,
+            h: height,
+            title: title
+        });
+    });
+
+    // Initialize PhotoSwipe
+    galleryLinks.forEach((link, index) => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            const options = {
+                index: index,
+                bgOpacity: 0.8,
+                showHideOpacity: true,
+                preload: [1,1] // Preload one image before and after the current
+            };
+
+            const gallery = new PhotoSwipe(pswpElement, uiElement, items, options);
+            gallery.init();
+        });
+    });
+
+    // Handle delete form submission
+    deleteForms.forEach(form => {
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            currentForm = this;
+            const filename = this.dataset.filename;
+            dialogText.textContent = "Are you sure you want to delete '" + filename + "'? This action cannot be undone.";
+            dialog.showModal();
+        });
+    });
+
+    // Handle confirm delete
+    confirmDeleteButton.addEventListener('click', function() {
+        if (currentForm) {
+            const filename = currentForm.dataset.filename;
+            const url = currentForm.action;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.message);
+                    // Remove the card from the DOM
+                    const card = currentForm.closest('.card').parentElement;
+                    card.remove();
+                } else {
+                    alert(data.message);
+                }
+                dialog.close();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while deleting the photo.');
+                dialog.close();
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

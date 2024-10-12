@@ -1,0 +1,211 @@
+/* static/styles.css */
+
+/* Custom styling for the HOME button in the navbar */
+.navbar-brand {
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    background-color: #007bff; /* Bootstrap primary color */
+    color: white !important;
+    border-radius: 0.25rem;
+}
+
+/* Ensure the link looks like a button */
+.navbar-brand:hover {
+    text-decoration: none;
+    color: white;
+}
+
+/* Increase the font size of category buttons */
+.btn-outline-secondary {
+    font-size: 1.1rem;
+}
+
+/* Ensure the delete button maintains its size */
+.btn-danger {
+    min-width: 40px;
+}
+
+/* Adjust list-group-item padding for better alignment */
+.list-group-item {
+    padding: 0.75rem 1.25rem;
+    border: 1px solid rgba(0, 0, 0, .125);
+}
+
+/* Hover effect for category buttons */
+.btn-outline-secondary:hover {
+    background-color: #6c757d;
+    color: white;
+}
+
+/* Hover effect for delete buttons */
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+/* Style the video player for consistency */
+video.card-img-top {
+    height: 200px;
+    object-fit: cover;
+}
+
+/* Adjust media card shadow and border */
+.card {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border: none;
+    margin: 0.1rem; /* Further reduced margin */
+}
+
+.card-img-top {
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
+    height: 200px;
+    object-fit: cover;
+}
+
+/* Ensure all buttons in the card body have consistent width */
+.card-body .btn {
+    width: 35px; /* Adjust as needed to match other buttons */
+    text-align: center;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.9rem;
+}
+
+/* Adjust the 'X' delete button to match the download buttons */
+.card-body .btn-danger {
+    width: 40px; /* Set width to 40px as per requirement */
+    padding: 0.25rem 0.5rem;
+}
+
+/* Ensure the 'Download All' buttons are side by side and narrow */
+.btn-group.btn-group-sm.btn-block {
+    display: flex;
+    justify-content: center;
+}
+
+.btn-group.btn-group-sm.btn-block .btn {
+    flex: 1;
+    margin-right: 5px;
+}
+
+.btn-group.btn-group-sm.btn-block .btn:last-child {
+    margin-right: 0;
+}
+
+/* Add hover effects for better UX */
+.btn-group.btn-group-sm.btn-block .btn:hover {
+    opacity: 0.8;
+}
+
+/* Adjust Bootstrap grid gutters for tighter layout */
+.row {
+    margin-left: -0.1rem; /* Reduced gutter */
+    margin-right: -0.1rem;
+}
+
+.row > [class*='col-'] {
+    padding-left: 0.1rem; /* Reduced gutter */
+    padding-right: 0.1rem;
+}
+
+/* Adjust card body padding */
+.card-body {
+    padding: 0.25rem; /* Reduced padding */
+}
+
+
+/* Increase Bootstrap Treeview text size and adjust tree structure */
+#category-tree .treeview-item {
+    font-size: 1.8rem; /* Further increased text size */
+    padding: 15px 20px; /* Increased padding for easier clicking */
+}
+
+#category-tree .tree-icon {
+    font-size: 1.5rem; /* Increased icon size */
+    margin-right: 15px; /* Increased space between icon and text */
+}
+
+/* Optionally, adjust the tree's overall width */
+#category-tree {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+/* Style the dialog */
+dialog {
+    border: none;
+    border-radius: 5px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+dialog::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+}
+/* static/styles.css */
+
+/* [Existing styles remain unchanged] */
+
+/* Additional Styling */
+
+/* Style the tree container with a border and padding */
+.tree-container {
+    border: 1px solid #ced4da; /* Bootstrap's default border color */
+    border-radius: 0.25rem; /* Rounded corners */
+    background-color: #f8f9fa; /* Light background for contrast */
+    overflow-y: auto; /* Add scroll if content exceeds max height */
+}
+
+/* Adjust Bootstrap Treeview text size and spacing */
+#category-tree .treeview-item {
+    font-size: 1.2rem; /* Increased text size */
+    padding: 10px 20px; /* Increased padding for easier clicking */
+}
+
+#category-tree .tree-icon {
+    font-size: 1.2rem; /* Increased icon size */
+    margin-right: 15px; /* Increased space between icon and text */
+}
+
+/* Optional: Enhance the appearance of the tree nodes */
+#category-tree .treeview-item:hover {
+    background-color: #e9ecef; /* Light hover effect */
+    border-radius: 0.25rem;
+}
+
+/* Style the delete button/icon within category view */
+.btn-danger.btn-lg {
+    /* Ensure the delete button aligns with the upload button */
+    vertical-align: middle;
+}
+
+/* Ensure the delete form is displayed inline with proper spacing */
+.delete-form {
+    display: inline-block;
+    margin-left: 10px;
+}
+
+/* Ensure the tree view is responsive */
+@media (max-width: 767.98px) {
+  
+    #category-tree .treeview-item {
+        font-size: 1rem;
+        padding: 8px 15px;
+    }
+    
+    #category-tree .tree-icon {
+        font-size: 1rem;
+        margin-right: 10px;
+    }
+}
+
+.treeview span.icon {
+    margin-right: 10px !important;
+}
+
+.list-group {
+    border-color: #cacaca !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+}

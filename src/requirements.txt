@@ -1,0 +1,7 @@
+# requirements.txt
+Flask==2.3.2
+Pillow==9.5.0
+pyheif==0.6.0
+Werkzeug==2.3.4
+Flask-WTF==1.1.1
+ffmpeg-python==0.2.0

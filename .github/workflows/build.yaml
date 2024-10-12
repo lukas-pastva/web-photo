@@ -1,0 +1,31 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Set Version
+        id: version
+        run: echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: build
+        env:
+          VERSION: ${{ env.VERSION }}
+        run: |
+          docker login registry.hub.docker.com -u "${{ secrets.DOCKER_HUB_USERNAME }}" -p "${{ secrets.DOCKER_HUB_PASSWORD }}"
+          docker build -f ./src/Dockerfile -t registry.hub.docker.com/lukaspastva/${{ github.event.repository.name }}:latest ./src
+          docker tag registry.hub.docker.com/lukaspastva/${{ github.event.repository.name }}:latest registry.hub.docker.com/lukaspastva/${{ github.event.repository.name }}:${VERSION}
+          docker push registry.hub.docker.com/lukaspastva/${{ github.event.repository.name }}:latest
+          docker push registry.hub.docker.com/lukaspastva/${{ github.event.repository.name }}:${VERSION}

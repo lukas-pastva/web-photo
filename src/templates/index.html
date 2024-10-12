@@ -1,0 +1,51 @@
+<!-- templates/index.html -->
+{% extends 'base.html' %}
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <!-- Tree Container -->
+        <div class="tree-container">
+            <div id="category-tree"></div>
+        </div>
+        <!-- Form to create a new category -->
+        <form action="{{ url_for('create_category') }}" method="post" class="mt-3">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                {{ form.category_name.label(class="form-label") }}
+                {{ form.category_name(class="form-control") }}
+            </div>
+            <div class="form-group">
+                {{ form.submit(class="btn btn-primary") }}
+            </div>
+        </form>
+    </div>
+    <!-- Removed the separate list of categories -->
+</div>
+<!-- Include jQuery first -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+
+<!-- Initialize Bootstrap Treeview -->
+<script>
+$(document).ready(function(){
+    // Use the dynamic treeData passed from Flask
+    var treeData = {{ treeData|tojson }};
+    
+    $('#category-tree').treeview({
+        data: treeData,
+        enableHtml: true, // Enable HTML content in node text if needed
+        enableLinks: true,
+        showBorder: false,
+        expandIcon: 'fas fa-chevron-right',
+        collapseIcon: 'fas fa-chevron-down',
+        nodeIcon: 'fas fa-folder',
+        selectedBackColor: '#007bff',
+        selectedColor: '#fff',
+        levels: 3, // Adjust based on maximum depth
+        onNodeSelected: function(event, node) {
+            // Navigate to the category view unless the delete button was clicked
+            window.location.href = node.href;
+        }
+    });
+});
+</script>
+{% endblock %}

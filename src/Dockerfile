@@ -1,7 +1,6 @@
-# Use the official Python 3.9 slim image as the base
 FROM python:3.9-slim
 
-# Install system dependencies, including FFmpeg
+# Install system dependencies, including FFmpeg and dependencies for Pillow and pyheif
 RUN apt-get update && apt-get install -y \
     libheif1 \
     libheif-dev \
@@ -10,8 +9,14 @@ RUN apt-get update && apt-get install -y \
     s3cmd \
     s3fs \
     vim \
-    ffmpeg \ 
-    && rm -rf /var/lib/apt/lists/*
+    ffmpeg \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    libtiff-dev \
+    libopenjp2-7-dev \
+    libwebp-dev \
+    && rm -rf /var/lib/apt/lists/*  # Clean up APT cache to reduce image size
 
 # Set work directory
 WORKDIR /app
@@ -27,6 +32,10 @@ COPY . .
 
 # Expose port
 EXPOSE 5000
+
+# Add non-root user for better security (optional but recommended)
+RUN adduser --disabled-password --gecos '' appuser
+USER appuser
 
 # Run the application
 CMD ["python", "app.py"]

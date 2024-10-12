@@ -1,6 +1,7 @@
 # app.py
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, abort, jsonify
 import os
+import logging
 import ffmpeg
 import shutil
 from PIL import Image
@@ -12,6 +13,10 @@ import zipfile
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -47,23 +52,25 @@ def process_file(filepath, category):
     name, ext = os.path.splitext(filename)
     ext = ext.lower()
 
-    # Check if the file is an image or video
+    # Define image and video extensions
     image_extensions = {'.heic', '.jpg', '.jpeg', '.png', '.gif', '.bmp'}
     video_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.m4v'}
 
     if ext not in image_extensions and ext not in video_extensions:
         # Unsupported file type
+        logger.warning(f"Unsupported file type: {filename}")
         return
 
     if ext in video_extensions:
         if ext == '.m4v':
             # Convert m4v to mp4
             source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
-            dest_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
+            dest_dir = source_dir  # Saving in the same 'source' directory
             mp4_filename = f"{name}.mp4"
             mp4_filepath = os.path.join(dest_dir, mp4_filename)
 
             try:
+                logger.info(f"Converting {filename} to {mp4_filename}")
                 (
                     ffmpeg
                     .input(filepath)
@@ -73,83 +80,87 @@ def process_file(filepath, category):
                 )
                 # Remove the original m4v file after conversion
                 os.remove(filepath)
-                print(f"Converted {filename} to {mp4_filename}")
+                logger.info(f"Successfully converted {filename} to {mp4_filename}")
             except ffmpeg.Error as e:
-                print(f"Error converting {filename}: {e}")
+                logger.error(f"Error converting {filename}: {e.stderr.decode()}")
                 return
+
+        # For all video files, do not process further as image
+        return
+
+    # Handle image files
+    try:
+        if ext == '.heic':
+            logger.info(f"Processing HEIC image: {filename}")
+            heif_file = pyheif.read(filepath)
+            image = Image.frombytes(
+                heif_file.mode,
+                heif_file.size,
+                heif_file.data,
+                "raw",
+                heif_file.mode,
+                heif_file.stride,
+            )
+            # Convert HEIC to JPEG
+            original_format = 'JPEG'
+            save_extension = '.jpeg'
         else:
-            # For other video formats, no processing needed
-            return
+            logger.info(f"Processing image: {filename}")
+            image = Image.open(filepath)
+            original_format = image.format  # Get the original image format
+            save_extension = ext  # Use the original file extension
 
-    # Open the image file
-    if ext == '.heic':
-        # Read HEIC file
-        heif_file = pyheif.read(filepath)
-        image = Image.frombytes(
-            heif_file.mode,
-            heif_file.size,
-            heif_file.data,
-            "raw",
-            heif_file.mode,
-            heif_file.stride,
-        )
-        # Since HEIC is not widely supported, we'll convert it to JPEG
-        original_format = 'JPEG'
-        save_extension = '.jpeg'
-    else:
-        # Open other image formats
-        image = Image.open(filepath)
-        original_format = image.format  # Get the original image format
-        save_extension = ext  # Use the original file extension
+        # Handle images with transparency (alpha channel)
+        if image.mode in ('RGBA', 'LA'):
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[-1])  # Use alpha channel as mask
+            image = background  # Update the image variable to the new image without alpha
+            original_format = 'JPEG'  # Save as JPEG since transparency is removed
+            save_extension = '.jpeg'
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
 
-    # Handle images with transparency (alpha channel)
-    if image.mode in ('RGBA', 'LA'):
-        # Create a white background image
-        background = Image.new('RGB', image.size, (255, 255, 255))
-        # Paste the original image onto the background using the alpha channel as a mask
-        background.paste(image, mask=image.split()[-1])  # Use the alpha channel as mask
-        image = background  # Update the image variable to the new image without alpha
-        original_format = 'JPEG'  # Save as JPEG since transparency is removed
-        save_extension = '.jpeg'
-    elif image.mode != 'RGB':
-        # Convert image to 'RGB' mode if it's not already
-        image = image.convert('RGB')
+        # Define the sizes for different resolutions
+        sizes = {
+            'largest': (2880, 1620),
+            'medium': (1920, 1080),
+            'thumbnail': (400, 400),
+        }
 
-    # Define the sizes for different resolutions
-    sizes = {
-        'largest': (2880, 1620),
-        'medium': (1920, 1080),
-        'thumbnail': (400, 400),
-    }
-
-    # Generate and save images in different resolutions
-    for size_name, size in sizes.items():
-        img_copy = image.copy()
-        if size_name == 'largest':
-            # Only resize if the image is larger than the target size
-            if image.width > size[0] or image.height > size[1]:
+        # Generate and save images in different resolutions
+        for size_name, size in sizes.items():
+            img_copy = image.copy()
+            if size_name == 'largest':
+                # Only resize if the image is larger than the target size
+                if image.width > size[0] or image.height > size[1]:
+                    img_copy.thumbnail(size)
+                # Save the image in the appropriate format with maximum quality
+                save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
+                os.makedirs(save_dir, exist_ok=True)
+                save_path = os.path.join(save_dir, f'{name}{save_extension}')
+                img_copy.save(save_path, original_format, quality=100)
+                logger.info(f"Saved largest image: {save_path}")
+            elif size_name == 'medium':
+                # Resize to the target size
                 img_copy.thumbnail(size)
-            # Save the image in the appropriate format with maximum quality
-            save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
-            os.makedirs(save_dir, exist_ok=True)
-            save_path = os.path.join(save_dir, f'{name}{save_extension}')
-            img_copy.save(save_path, original_format, quality=100)
-        elif size_name == 'medium':
-            # Resize to the target size
-            img_copy.thumbnail(size)
-            # Save as JPEG with default image quality
-            save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
-            os.makedirs(save_dir, exist_ok=True)
-            save_path = os.path.join(save_dir, f'{name}.jpeg')
-            img_copy.save(save_path, 'JPEG', quality=IMAGE_QUALITY)
-        elif size_name == 'thumbnail':
-            # Resize to the target size
-            img_copy.thumbnail(size)
-            # Save as JPEG with reduced quality
-            save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
-            os.makedirs(save_dir, exist_ok=True)
-            save_path = os.path.join(save_dir, f'{name}.jpeg')
-            img_copy.save(save_path, 'JPEG', quality=THUMBNAIL_QUALITY)
+                # Save as JPEG with default image quality
+                save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
+                os.makedirs(save_dir, exist_ok=True)
+                save_path = os.path.join(save_dir, f'{name}.jpeg')
+                img_copy.save(save_path, 'JPEG', quality=IMAGE_QUALITY)
+                logger.info(f"Saved medium image: {save_path}")
+            elif size_name == 'thumbnail':
+                # Resize to the target size
+                img_copy.thumbnail(size)
+                # Save as JPEG with reduced quality
+                save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
+                os.makedirs(save_dir, exist_ok=True)
+                save_path = os.path.join(save_dir, f'{name}.jpeg')
+                img_copy.save(save_path, 'JPEG', quality=THUMBNAIL_QUALITY)
+                logger.info(f"Saved thumbnail image: {save_path}")
+
+    except Exception as e:
+        logger.error(f"Error processing image {filename}: {str(e)}")
 
 def build_tree_data(categories):
     tree = {}

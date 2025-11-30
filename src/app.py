@@ -4,7 +4,7 @@ import os
 import logging
 import ffmpeg
 import shutil
-from PIL import Image
+from PIL import Image, ImageOps
 import pyheif
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -131,6 +131,13 @@ def process_file(filepath, category):
             image = Image.open(filepath)
             original_format = image.format  # Get the original image format
             save_extension = ext  # Use the original file extension
+
+        # Normalize orientation based on EXIF so saved images display correctly
+        try:
+            image = ImageOps.exif_transpose(image)
+        except Exception as _e:
+            # If anything goes wrong, continue without transposition
+            pass
 
         # Handle images with transparency (alpha channel)
         if image.mode in ('RGBA', 'LA'):

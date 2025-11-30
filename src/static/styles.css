@@ -64,6 +64,58 @@ video.card-img-top {
     object-fit: cover;
 }
 
+/* Thumbnail loader overlay */
+.thumb-container {
+    position: relative;
+}
+
+.thumb-container::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(230,230,230,0.9) 25%, rgba(245,245,245,0.9) 37%, rgba(230,230,230,0.9) 63%);
+    background-size: 400% 100%;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.thumb-container.loading::before {
+    opacity: 1;
+    animation: thumb-shimmer 1.2s ease-in-out infinite;
+}
+
+.thumb-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+}
+
+.thumb-container.loading .thumb-spinner {
+    opacity: 1;
+}
+
+@keyframes thumb-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+}
+
+/* Play overlay for video posters */
+.play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    color: rgba(255,255,255,0.95);
+    text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    pointer-events: none;
+}
+
 /* Ensure all buttons in the card body have consistent width */
 .card-body .btn {
     width: 35px; /* Adjust as needed to match other buttons */

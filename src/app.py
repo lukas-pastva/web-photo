@@ -13,6 +13,7 @@ import zipfile
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,6 +24,9 @@ app = Flask(__name__)
 # Configurable upload directory via environment variable
 UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Encourage browser caching of served files (uploads and static)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 60 * 60 * 24 * 30  # 30 days
 
 # Configurable image quality via environment variable
 # Default quality is 100
@@ -62,13 +66,13 @@ def process_file(filepath, category):
         return
 
     if ext in video_extensions:
+        thumb_source_path = filepath
+        # If .m4v, convert to .mp4 first
         if ext == '.m4v':
-            # Convert m4v to mp4
             source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
-            dest_dir = source_dir  # Saving in the same 'source' directory
+            dest_dir = source_dir
             mp4_filename = f"{name}.mp4"
             mp4_filepath = os.path.join(dest_dir, mp4_filename)
-
             try:
                 logger.info(f"Converting {filename} to {mp4_filename}")
                 (
@@ -78,14 +82,32 @@ def process_file(filepath, category):
                     .overwrite_output()
                     .run()
                 )
-                # Remove the original m4v file after conversion
                 os.remove(filepath)
                 logger.info(f"Successfully converted {filename} to {mp4_filename}")
+                thumb_source_path = mp4_filepath
             except ffmpeg.Error as e:
                 logger.error(f"Error converting {filename}: {e.stderr.decode()}")
                 return
 
-        # For all video files, do not process further as image
+        # Generate video poster thumbnail (JPEG)
+        try:
+            thumb_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'video_thumbnail')
+            os.makedirs(thumb_dir, exist_ok=True)
+            thumb_path = os.path.join(thumb_dir, f'{name}.jpeg')
+            logger.info(f"Generating video thumbnail for {os.path.basename(thumb_source_path)} -> {thumb_path}")
+            (
+                ffmpeg
+                .input(thumb_source_path, ss=1)
+                .filter('scale', 400, -1)
+                .output(thumb_path, vframes=1)
+                .overwrite_output()
+                .run()
+            )
+        except ffmpeg.Error as e:
+            logger.error(f"Error generating video thumbnail for {filename}: {getattr(e, 'stderr', b'').decode(errors='ignore')}")
+        except Exception as e:
+            logger.error(f"Unexpected error generating video thumbnail for {filename}: {str(e)}")
+        # Do not process further as image
         return
 
     # Handle image files
@@ -138,7 +160,11 @@ def process_file(filepath, category):
                 save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
                 os.makedirs(save_dir, exist_ok=True)
                 save_path = os.path.join(save_dir, f'{name}{save_extension}')
-                img_copy.save(save_path, original_format, quality=100)
+                # Use progressive/optimized JPEG when applicable for faster progressive rendering
+                if (original_format or '').upper() == 'JPEG' or save_path.lower().endswith(('.jpg', '.jpeg')):
+                    img_copy.save(save_path, 'JPEG', quality=100, optimize=True, progressive=True)
+                else:
+                    img_copy.save(save_path, original_format)
                 logger.info(f"Saved largest image: {save_path}")
             elif size_name == 'medium':
                 # Resize to the target size
@@ -147,7 +173,7 @@ def process_file(filepath, category):
                 save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
                 os.makedirs(save_dir, exist_ok=True)
                 save_path = os.path.join(save_dir, f'{name}.jpeg')
-                img_copy.save(save_path, 'JPEG', quality=IMAGE_QUALITY)
+                img_copy.save(save_path, 'JPEG', quality=IMAGE_QUALITY, optimize=True, progressive=True)
                 logger.info(f"Saved medium image: {save_path}")
             elif size_name == 'thumbnail':
                 # Resize to the target size
@@ -156,7 +182,7 @@ def process_file(filepath, category):
                 save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
                 os.makedirs(save_dir, exist_ok=True)
                 save_path = os.path.join(save_dir, f'{name}.jpeg')
-                img_copy.save(save_path, 'JPEG', quality=THUMBNAIL_QUALITY)
+                img_copy.save(save_path, 'JPEG', quality=THUMBNAIL_QUALITY, optimize=True, progressive=True)
                 logger.info(f"Saved thumbnail image: {save_path}")
 
     except Exception as e:
@@ -210,7 +236,8 @@ def category_view(category):
     source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
     dimensions_path = os.path.join(app.config['UPLOAD_FOLDER'], category, 'dimensions.json')
 
-    files = []
+    images = []
+    videos = []
     image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'}
     video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
 
@@ -228,7 +255,7 @@ def category_view(category):
             name, ext = os.path.splitext(file)
             ext = ext.lower()
             if ext in image_extensions:
-                files.append({
+                images.append({
                     'name': name,
                     'ext': ext,
                     'filename': file,
@@ -243,14 +270,23 @@ def category_view(category):
             name, ext = os.path.splitext(file)
             ext = ext.lower()
             if ext in video_extensions:
-                files.append({
+                # Determine poster path (generated on upload)
+                poster_rel = os.path.join(category, 'video_thumbnail', f'{name}.jpeg')
+                poster_abs = os.path.join(app.config['UPLOAD_FOLDER'], poster_rel)
+                if os.path.exists(poster_abs):
+                    poster_url = url_for('uploaded_file', filename=poster_rel)
+                else:
+                    poster_url = url_for('static', filename='placeholder.jpg')
+
+                videos.append({
                     'name': name,
                     'ext': ext,
                     'filename': file,
+                    'poster': poster_url,
                     # Videos do not need width and height for PhotoSwipe
                 })
 
-    return render_template('category.html', category=category, files=files)
+    return render_template('category.html', category=category, images=images, videos=videos)
 
 @app.route('/category/create', methods=['POST'])
 def create_category():
@@ -407,9 +443,18 @@ def delete_photo(category, filename):
             except Exception as e:
                 success = False
                 messages.append(f'Error deleting {size} version: {str(e)}')
-        else:
-            # File does not exist
-            pass  # Optionally, handle non-existent files
+
+    # If deleting a video, also remove its generated poster
+    name, ext = os.path.splitext(filename)
+    video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
+    if ext.lower() in video_extensions:
+        poster_path = os.path.join(app.config['UPLOAD_FOLDER'], category, 'video_thumbnail', f'{name}.jpeg')
+        if os.path.exists(poster_path):
+            try:
+                os.remove(poster_path)
+            except Exception as e:
+                success = False
+                messages.append(f'Error deleting video thumbnail: {str(e)}')
 
     if success:
         return jsonify({'status': 'success', 'message': f"'{filename}' has been deleted successfully."}), 200

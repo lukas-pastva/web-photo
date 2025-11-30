@@ -23,79 +23,91 @@
     <a href="{{ url_for('download_videos', category=category) }}" class="btn btn-warning" title="Download Videos">↓ videos</a>
 </div>
 
-<!-- Gallery Container with a unique ID -->
-<div class="row" id="gallery">
-    {% set mime_types = {
-        '.mp4': 'video/mp4',
-        '.mov': 'video/quicktime',
-        '.avi': 'video/x-msvideo',
-        '.mkv': 'video/x-matroska'
-    } %}    
-    {% for file in files %}
-    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+<!-- Media Tabs -->
+<ul class="nav nav-tabs" id="mediaTabs" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="images-tab" data-toggle="tab" href="#images-pane" role="tab" aria-controls="images-pane" aria-selected="true">Images</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="videos-tab" data-toggle="tab" href="#videos-pane" role="tab" aria-controls="videos-pane" aria-selected="false">Videos</a>
+  </li>
+  </ul>
+
+<div class="tab-content mt-3">
+  <!-- Images Pane -->
+  <div class="tab-pane fade show active" id="images-pane" role="tabpanel" aria-labelledby="images-tab">
+    <div class="row" id="gallery">
+      {% for file in images %}
+      <div class="col-6 col-sm-4 col-md-3 col-lg-2">
         <div class="card mb-3">
-            {% if file.ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'] %}
-                <!-- Gallery Item -->
-                <a href="{{ url_for('uploaded_file', filename=category + '/largest/' + file.filename) }}" 
-                   data-pswp-title="{{ file.filename }}" 
-                   data-pswp-width="{{ file.width }}" 
-                   data-pswp-height="{{ file.height }}" 
-                   class="gallery-item">
-                    <img src="{{ url_for('uploaded_file', filename=category + '/thumbnail/' + file.name + '.jpeg') }}" 
-                         class="card-img-top" 
-                         alt="{{ file.filename }}" 
-                         loading="lazy">
-                </a>
-            {% elif file.ext in ['.mp4', '.mov', '.avi', '.mkv'] %}
-            <!-- Display video -->
-            <video class="card-img-top" controls preload="metadata">
-                <source src="{{ url_for('uploaded_file', filename=category + '/source/' + file.filename) }}" 
-                        type="{{ mime_types.get(file.ext, 'video/mp4') }}">
-                Your browser does not support the video tag.
-            </video>
-            
-            {% else %}
-                <!-- Unknown file type -->
-                <div class="card-img-top text-center">
-                    <span class="text-muted">Unsupported file type</span>
-                </div>
-            {% endif %}
-            <div class="card-body d-flex justify-content-between align-items-center">
-                <div class="btn-group btn-group-sm" role="group" aria-label="Download Buttons">
-                    {% if file.ext in ['.mp4', '.mov', '.avi', '.mkv'] %}
-                        <!-- For videos, only source download -->
-                        <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" 
-                           class="btn btn-primary btn-sm" 
-                           download 
-                           title="Download Video">L</a>
-                    {% else %}
-                        <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" 
-                           class="btn btn-primary btn-sm" 
-                           download 
-                           title="Source (L)">L</a>
-                        <a href="{{ url_for('download_single', category=category, size='largest', filename=file.filename) }}" 
-                           class="btn btn-info btn-sm" 
-                           download 
-                           title="Largest (M)">M</a>
-                        <a href="{{ url_for('download_single', category=category, size='medium', filename=file.filename) }}" 
-                           class="btn btn-secondary btn-sm" 
-                           download 
-                           title="Medium (S)">S</a>
-                    {% endif %}
-                </div>
-                <!-- Delete Button -->
-                <form action="{{ url_for('delete_photo', category=category, filename=file.filename) }}" 
-                      method="post" 
-                      class="mb-0 delete-form" 
-                      data-filename="{{ file.filename }}">
-                    <button type="submit" class="btn btn-danger btn-sm" title="Delete">X</button>
-                </form>
+          <!-- Gallery Item with loader -->
+          <a href="{{ url_for('uploaded_file', filename=category + '/largest/' + file.filename) }}"
+             data-pswp-title="{{ file.filename }}"
+             data-pswp-width="{{ file.width }}"
+             data-pswp-height="{{ file.height }}"
+             class="gallery-item">
+              <div class="thumb-container loading">
+                <img src="{{ url_for('uploaded_file', filename=category + '/thumbnail/' + file.name + '.jpeg') }}"
+                     class="card-img-top"
+                     alt="{{ file.filename }}"
+                     loading="lazy"
+                     decoding="async"
+                     onload="this.closest('div.thumb-container')?.classList.remove('loading')"
+                     onerror="this.closest('div.thumb-container')?.classList.remove('loading'); this.src='{{ url_for('static', filename='placeholder.jpg') }}'">
+                <div class="thumb-spinner spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
+              </div>
+          </a>
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Download Buttons">
+              <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" class="btn btn-primary btn-sm" download title="Source (L)">L</a>
+              <a href="{{ url_for('download_single', category=category, size='largest', filename=file.filename) }}" class="btn btn-info btn-sm" download title="Largest (M)">M</a>
+              <a href="{{ url_for('download_single', category=category, size='medium', filename=file.filename) }}" class="btn btn-secondary btn-sm" download title="Medium (S)">S</a>
             </div>
+            <form action="{{ url_for('delete_photo', category=category, filename=file.filename) }}" method="post" class="mb-0 delete-form" data-filename="{{ file.filename }}">
+              <button type="submit" class="btn btn-danger btn-sm" title="Delete">X</button>
+            </form>
+          </div>
         </div>
+      </div>
+      {% else %}
+      <p class="px-3">No images in this category.</p>
+      {% endfor %}
     </div>
-    {% else %}
-    <p>No files in this category.</p>
-    {% endfor %}
+  </div>
+
+  <!-- Videos Pane -->
+  <div class="tab-pane fade" id="videos-pane" role="tabpanel" aria-labelledby="videos-tab">
+    <div class="row" id="videos-grid">
+      {% for video in videos %}
+      <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="card mb-3">
+          <!-- Poster with play overlay; actual video loads on click -->
+          <div class="thumb-container loading video-poster" data-video-src="{{ url_for('uploaded_file', filename=category + '/source/' + video.filename) }}">
+            <img src="{{ video.poster }}"
+                 class="card-img-top"
+                 alt="{{ video.filename }}"
+                 loading="lazy"
+                 decoding="async"
+                 onload="this.closest('div.thumb-container')?.classList.remove('loading')"
+                 onerror="this.closest('div.thumb-container')?.classList.remove('loading'); this.src='{{ url_for('static', filename='placeholder.jpg') }}'">
+            <div class="thumb-spinner spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
+            <div class="play-overlay"><i class="fas fa-play"></i></div>
+          </div>
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Download Buttons">
+              <a href="{{ url_for('download_single', category=category, size='source', filename=video.filename) }}" class="btn btn-primary btn-sm" download title="Download Video">L</a>
+            </div>
+            <form action="{{ url_for('delete_photo', category=category, filename=video.filename) }}" method="post" class="mb-0 delete-form" data-filename="{{ video.filename }}">
+              <button type="submit" class="btn btn-danger btn-sm" title="Delete">X</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <p class="px-3">No videos in this category.</p>
+      {% endfor %}
+    </div>
+  </div>
 </div>
 
 <!-- PhotoSwipe Container -->
@@ -250,6 +262,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 dialog.close();
             });
         }
+    });
+
+    // Ensure loaders are removed for cached images
+    document.querySelectorAll('.thumb-container img').forEach(function(img){
+        if (img.complete) {
+            img.closest('.thumb-container')?.classList.remove('loading');
+        } else {
+            img.addEventListener('load', function(){
+                img.closest('.thumb-container')?.classList.remove('loading');
+            });
+            img.addEventListener('error', function(){
+                img.closest('.thumb-container')?.classList.remove('loading');
+                img.src = '{{ url_for('static', filename='placeholder.jpg') }}';
+            });
+        }
+    });
+
+    // Replace poster with playable video on click
+    document.querySelectorAll('.video-poster').forEach(function(container) {
+        container.addEventListener('click', function() {
+            const src = container.getAttribute('data-video-src');
+            if (!src) return;
+            const video = document.createElement('video');
+            video.className = 'card-img-top';
+            video.controls = true;
+            video.preload = 'metadata';
+            const source = document.createElement('source');
+            source.src = src;
+            // MIME will be inferred by browser; optional to set
+            video.appendChild(source);
+            container.replaceWith(video);
+        });
     });
 });
 </script>

@@ -150,6 +150,8 @@ def process_file(filepath, category):
         }
 
         # Generate and save images in different resolutions
+        # Also capture dimensions for each saved size to persist
+        saved_dimensions = {}
         for size_name, size in sizes.items():
             img_copy = image.copy()
             if size_name == 'largest':
@@ -166,6 +168,7 @@ def process_file(filepath, category):
                 else:
                     img_copy.save(save_path, original_format)
                 logger.info(f"Saved largest image: {save_path}")
+                saved_dimensions[size_name] = {'width': img_copy.width, 'height': img_copy.height}
             elif size_name == 'medium':
                 # Resize to the target size
                 img_copy.thumbnail(size)
@@ -175,6 +178,7 @@ def process_file(filepath, category):
                 save_path = os.path.join(save_dir, f'{name}.jpeg')
                 img_copy.save(save_path, 'JPEG', quality=IMAGE_QUALITY, optimize=True, progressive=True)
                 logger.info(f"Saved medium image: {save_path}")
+                saved_dimensions[size_name] = {'width': img_copy.width, 'height': img_copy.height}
             elif size_name == 'thumbnail':
                 # Resize to the target size
                 img_copy.thumbnail(size)
@@ -184,6 +188,23 @@ def process_file(filepath, category):
                 save_path = os.path.join(save_dir, f'{name}.jpeg')
                 img_copy.save(save_path, 'JPEG', quality=THUMBNAIL_QUALITY, optimize=True, progressive=True)
                 logger.info(f"Saved thumbnail image: {save_path}")
+                saved_dimensions[size_name] = {'width': img_copy.width, 'height': img_copy.height}
+
+        # Persist dimensions for this image so PhotoSwipe can use correct aspect ratio
+        try:
+            dimensions_path = os.path.join(app.config['UPLOAD_FOLDER'], category, 'dimensions.json')
+            os.makedirs(os.path.dirname(dimensions_path), exist_ok=True)
+            if os.path.exists(dimensions_path):
+                with open(dimensions_path, 'r') as f:
+                    dims_data = json.load(f)
+            else:
+                dims_data = {}
+            dims_data[name] = saved_dimensions
+            with open(dimensions_path, 'w') as f:
+                json.dump(dims_data, f)
+            logger.info(f"Updated dimensions metadata: {dimensions_path}")
+        except Exception as e:
+            logger.warning(f"Could not write dimensions metadata for {filename}: {e}")
 
     except Exception as e:
         logger.error(f"Error processing image {filename}: {str(e)}")
@@ -255,12 +276,24 @@ def category_view(category):
             name, ext = os.path.splitext(file)
             ext = ext.lower()
             if ext in image_extensions:
+                # Prefer persisted dimensions; if missing, inspect the actual file
+                width = all_dimensions.get(name, {}).get('largest', {}).get('width')
+                height = all_dimensions.get(name, {}).get('largest', {}).get('height')
+                if width is None or height is None:
+                    try:
+                        img_path = os.path.join(largest_dir, file)
+                        with Image.open(img_path) as im:
+                            width, height = im.size
+                    except Exception:
+                        # Fallback to a sane default if inspection fails
+                        width, height = 1024, 768
+
                 images.append({
                     'name': name,
                     'ext': ext,
                     'filename': file,
-                    'width': all_dimensions.get(name, {}).get('largest', {}).get('width', 1024),
-                    'height': all_dimensions.get(name, {}).get('largest', {}).get('height', 768)
+                    'width': width,
+                    'height': height
                 })
 
     # Fetch videos from 'source' directory

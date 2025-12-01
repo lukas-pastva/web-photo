@@ -1,0 +1,308 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Admin Scripts</h2>
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Run script</h5>
+                <div class="form-group">
+                    <label for="script-select">Script</label>
+                    <select id="script-select" class="form-control"></select>
+                </div>
+                <p id="script-description" class="text-muted small mb-2"></p>
+                <div id="script-params"></div>
+                <div id="admin-status" class="small text-muted mb-2"></div>
+                <button id="run-script-btn" type="button" class="btn btn-primary btn-block mb-2">Run</button>
+                <button id="stop-script-btn" type="button" class="btn btn-outline-danger btn-block" disabled>Stop running job</button>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">What to expect</h6>
+                <ul class="small pl-3 mb-0">
+                    <li>Scripts run in the background; output is captured below.</li>
+                    <li>Processed items are remembered so reruns resume instead of starting over.</li>
+                    <li>Stopping a job is cooperative; the script exits after finishing the current file.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="card-title mb-0">Live output</h5>
+                    <span id="active-job-badge" class="badge badge-secondary">No job selected</span>
+                </div>
+                <div id="log-output" class="log-box">Select a job to view output.</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Jobs</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover" id="jobs-table">
+                        <thead>
+                            <tr>
+                                <th>Script</th>
+                                <th>Status</th>
+                                <th>Processed</th>
+                                <th>Started</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const scripts = {{ scripts|tojson }};
+let jobs = {{ jobs|tojson }};
+const routes = {
+    start: "{{ url_for('start_script') }}",
+    list: "{{ url_for('list_jobs_api') }}",
+    log: "{{ url_for('job_log', job_id='JOB_ID') }}",
+    stop: "{{ url_for('stop_job', job_id='JOB_ID') }}",
+};
+
+let activeJobId = null;
+let logOffset = 0;
+let logTimer = null;
+const LOG_POLL_MS = 1200;
+
+function scriptMeta(name) {
+    return scripts.find(s => s.name === name);
+}
+
+function renderScriptSelector() {
+    const select = document.getElementById('script-select');
+    select.innerHTML = '';
+    scripts.forEach((script, idx) => {
+        const option = document.createElement('option');
+        option.value = script.name;
+        option.textContent = script.label || script.name;
+        if (idx === 0) option.selected = true;
+        select.appendChild(option);
+    });
+    select.addEventListener('change', () => updateScriptDetails(select.value));
+    if (scripts.length) {
+        updateScriptDetails(select.value);
+    }
+}
+
+function updateScriptDetails(scriptName) {
+    const details = scriptMeta(scriptName);
+    document.getElementById('script-description').textContent = details?.description || '';
+    const paramsContainer = document.getElementById('script-params');
+    paramsContainer.innerHTML = '';
+    if (!details || !details.params) return;
+    Object.entries(details.params).forEach(([key, meta]) => {
+        const group = document.createElement('div');
+        group.className = 'form-group';
+        const label = document.createElement('label');
+        label.setAttribute('for', `param-${key}`);
+        label.textContent = meta.label || key;
+        const input = document.createElement('input');
+        input.className = 'form-control';
+        input.id = `param-${key}`;
+        input.name = key;
+        input.placeholder = meta.placeholder || '';
+        if (meta.required) {
+            input.required = true;
+        }
+        group.appendChild(label);
+        group.appendChild(input);
+        paramsContainer.appendChild(group);
+    });
+}
+
+function collectParams(scriptName) {
+    const details = scriptMeta(scriptName) || {};
+    const params = {};
+    if (!details.params) return params;
+    Object.keys(details.params).forEach((key) => {
+        const input = document.getElementById(`param-${key}`);
+        if (!input) return;
+        const value = input.value.trim();
+        params[key] = value.length ? value : null;
+    });
+    return params;
+}
+
+function statusBadge(status) {
+    const map = {
+        running: 'badge-primary',
+        completed: 'badge-success',
+        failed: 'badge-danger',
+        stopped: 'badge-warning',
+        queued: 'badge-secondary',
+    };
+    const cls = map[status] || 'badge-secondary';
+    return `<span class="badge ${cls} text-uppercase">${status}</span>`;
+}
+
+function renderJobs(jobList) {
+    const tbody = document.querySelector('#jobs-table tbody');
+    tbody.innerHTML = '';
+    jobList.forEach((job) => {
+        const row = document.createElement('tr');
+        row.className = 'job-row';
+        row.dataset.jobId = job.id;
+        const scriptLabel = (scriptMeta(job.script)?.label) || job.script;
+        row.innerHTML = `
+            <td>${scriptLabel}</td>
+            <td>${statusBadge(job.status)}</td>
+            <td>${job.processed_count || 0}</td>
+            <td class="small text-muted">${job.started_at || ''}</td>
+            <td><button class="btn btn-link btn-sm p-0 view-log" data-job="${job.id}">View log</button></td>
+        `;
+        row.addEventListener('click', (event) => {
+            if (event.target.classList.contains('view-log')) {
+                event.stopPropagation();
+            }
+            selectJob(job.id);
+        });
+        tbody.appendChild(row);
+    });
+}
+
+function setStatusMessage(message, isError = false) {
+    const el = document.getElementById('admin-status');
+    el.textContent = message;
+    el.classList.toggle('text-danger', isError);
+}
+
+function appendLog(text) {
+    if (!text) return;
+    const logBox = document.getElementById('log-output');
+    const atBottom = Math.abs(logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight) < 30;
+    logBox.textContent += text;
+    if (atBottom) {
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+}
+
+async function fetchLog() {
+    if (!activeJobId) return;
+    const res = await fetch(`${routes.log.replace('JOB_ID', activeJobId)}?offset=${logOffset}`);
+    if (!res.ok) return;
+    const payload = await res.json();
+    if (typeof payload.offset === 'number') {
+        logOffset = payload.offset;
+    }
+    appendLog(payload.data);
+    if (payload.status && payload.status !== 'running') {
+        document.getElementById('stop-script-btn').disabled = true;
+        clearInterval(logTimer);
+        logTimer = null;
+    }
+}
+
+function startLogPolling() {
+    clearInterval(logTimer);
+    if (!activeJobId) return;
+    logTimer = setInterval(fetchLog, LOG_POLL_MS);
+    fetchLog();
+}
+
+async function refreshJobs() {
+    try {
+        const res = await fetch(routes.list);
+        if (!res.ok) return;
+        const payload = await res.json();
+        jobs = payload.jobs || [];
+        renderJobs(jobs);
+        const active = jobs.find(j => j.id === activeJobId);
+        if (active) {
+            updateActiveBadge(active);
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function runScript(event) {
+    event.preventDefault();
+    const scriptName = document.getElementById('script-select').value;
+    if (!scriptName) return;
+    const params = collectParams(scriptName);
+    setStatusMessage('Starting script…');
+    try {
+        const res = await fetch(routes.start, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({script: scriptName, params})
+        });
+        const payload = await res.json();
+        if (!res.ok || payload.error) {
+            setStatusMessage(payload.error || 'Failed to start script.', true);
+            return;
+        }
+        await refreshJobs();
+        setStatusMessage('Script started.');
+        selectJob(payload.id);
+    } catch (err) {
+        console.error(err);
+        setStatusMessage('Error starting script.', true);
+    }
+}
+
+async function stopScript(event) {
+    event.preventDefault();
+    if (!activeJobId) return;
+    try {
+        const res = await fetch(routes.stop.replace('JOB_ID', activeJobId), {method: 'POST'});
+        const payload = await res.json();
+        if (!res.ok || payload.error) {
+            setStatusMessage(payload.error || 'Unable to stop job.', true);
+            return;
+        }
+        setStatusMessage('Stop requested. Waiting for script to exit…');
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function selectJob(jobId) {
+    activeJobId = jobId;
+    logOffset = 0;
+    const job = jobs.find(j => j.id === jobId);
+    updateActiveBadge(job);
+    document.getElementById('log-output').textContent = '';
+    startLogPolling();
+}
+
+function updateActiveBadge(job) {
+    const badge = document.getElementById('active-job-badge');
+    if (!job) {
+        badge.textContent = 'Job selected';
+        badge.className = 'badge badge-secondary';
+        document.getElementById('stop-script-btn').disabled = true;
+        return;
+    }
+    const isRunning = job.status === 'running';
+    badge.textContent = `${job.script} (${job.status})`;
+    badge.className = `badge badge-pill badge-${isRunning ? 'primary' : 'secondary'}`;
+    document.getElementById('stop-script-btn').disabled = !isRunning;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderScriptSelector();
+    renderJobs(jobs);
+    const running = jobs.find(j => j.status === 'running');
+    if (running) {
+        selectJob(running.id);
+    } else if (jobs.length) {
+        selectJob(jobs[0].id);
+    }
+    document.getElementById('run-script-btn').addEventListener('click', runScript);
+    document.getElementById('stop-script-btn').addEventListener('click', stopScript);
+    setInterval(refreshJobs, 4000);
+});
+</script>
+{% endblock %}

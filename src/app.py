@@ -14,6 +14,8 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
 import json
+from script_manager import ScriptManager
+from tasks import rebuild_previews_task
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -50,6 +52,40 @@ ALLOWED_EXTENSIONS = {'heic', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'mp4', 'mov', 
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Where long-running script state (logs, progress) is stored.
+STATE_DIR = os.environ.get('STATE_DIR', os.path.join(app.config['UPLOAD_FOLDER'], '.state'))
+os.makedirs(STATE_DIR, exist_ok=True)
+
+def rebuild_previews_runner(ctx, category=None):
+    """Admin-triggered runner that supports stop/resume."""
+    rebuild_previews_task(
+        app=app,
+        process_file=process_file,
+        allowed_file=allowed_file,
+        category=category or None,
+        progress=ctx.progress,
+        progress_key=ctx.job.progress_key,
+        stop_event=ctx.job.stop_event,
+        logger=ctx.log,
+    )
+
+MANAGED_SCRIPTS = {
+    "rebuild_previews": {
+        "label": "Rebuild previews",
+        "description": "Regenerate derived images and metadata. Resumes by skipping processed files.",
+        "runner": rebuild_previews_runner,
+        "params": {
+            "category": {
+                "label": "Category (leave blank for all)",
+                "required": False,
+            }
+        },
+        "progress_key_fn": lambda params: f"rebuild_previews:{params.get('category') or 'all'}",
+    },
+}
+
+script_manager = ScriptManager(state_dir=STATE_DIR, scripts=MANAGED_SCRIPTS)
 
 def process_file(filepath, category):
     filename = os.path.basename(filepath)
@@ -256,6 +292,66 @@ def index():
     treeData = build_tree_data(categories)
     
     return render_template('index.html', categories=categories, form=form, treeData=treeData)
+
+@app.route('/admin')
+def admin_dashboard():
+    scripts_payload = []
+    for name, meta in MANAGED_SCRIPTS.items():
+        scripts_payload.append({
+            'name': name,
+            'label': meta.get('label', name),
+            'description': meta.get('description', ''),
+            'params': meta.get('params', {}),
+        })
+    jobs = script_manager.list_jobs()
+    # Compute processed counts for display
+    for job in jobs:
+        job['processed_count'] = script_manager.progress.count(job.get('progress_key', job['script']))
+    return render_template('admin.html', scripts=scripts_payload, jobs=jobs)
+
+@app.route('/admin/scripts/run', methods=['POST'])
+def start_script():
+    data = request.get_json(silent=True) or {}
+    script_name = data.get('script')
+    params = data.get('params') or {}
+    if not script_name or script_name not in MANAGED_SCRIPTS:
+        return jsonify({'error': 'Unknown script'}), 400
+    try:
+        job = script_manager.start_job(script_name, params)
+    except (RuntimeError, ValueError) as exc:
+        return jsonify({'error': str(exc)}), 400
+    return jsonify(script_manager.job_status(job.id)), 200
+
+@app.route('/admin/jobs', methods=['GET'])
+def list_jobs_api():
+    jobs = script_manager.list_jobs()
+    for job in jobs:
+        job['processed_count'] = script_manager.progress.count(job.get('progress_key', job['script']))
+    return jsonify({'jobs': jobs})
+
+@app.route('/admin/jobs/<job_id>/status', methods=['GET'])
+def job_status(job_id):
+    data = script_manager.job_status(job_id)
+    if not data:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify(data)
+
+@app.route('/admin/jobs/<job_id>/log', methods=['GET'])
+def job_log(job_id):
+    try:
+        offset = int(request.args.get('offset', 0))
+    except ValueError:
+        offset = 0
+    log_data = script_manager.read_log(job_id, offset=offset)
+    if log_data is None:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify(log_data)
+
+@app.route('/admin/jobs/<job_id>/stop', methods=['POST'])
+def stop_job(job_id):
+    if script_manager.stop_job(job_id):
+        return jsonify({'status': 'stopping'})
+    return jsonify({'error': 'Job not running'}), 400
 
 @app.route('/category/<category>')
 def category_view(category):

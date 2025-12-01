@@ -282,3 +282,8 @@ dialog::backdrop {
 #admin-status.text-danger {
     color: #dc3545 !important;
 }
+
+.admin-btn {
+    width: 100% !important;
+    padding: 0.6rem 0.75rem;
+}

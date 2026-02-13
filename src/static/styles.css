@@ -1,83 +1,214 @@
-/* static/styles.css */
+/* ===== CSS Custom Properties (Light theme defaults) ===== */
+:root {
+    --bg: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-card: #ffffff;
+    --text: #212529;
+    --text-muted: #6c757d;
+    --border: #dee2e6;
+    --navbar-bg: #f8f9fa;
+    --navbar-text: #212529;
+    --brand-bg: #007bff;
+    --brand-text: #ffffff;
+    --tree-bg: #f8f9fa;
+    --tree-hover: #e9ecef;
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --input-bg: #ffffff;
+    --input-border: #ced4da;
+    --dialog-bg: #ffffff;
+    --log-bg: #0f1115;
+    --log-text: #e7e7e7;
+    --shimmer-a: rgba(230,230,230,0.9);
+    --shimmer-b: rgba(245,245,245,0.9);
+    --link-color: #007bff;
+    --upload-zone-bg: #f8f9fa;
+    --upload-zone-border: #adb5bd;
+    --category-item-bg: transparent;
+    --category-item-hover: #f0f0f0;
+}
 
-/* Custom styling for the HOME button in the navbar */
+/* Dark theme */
+[data-theme="dark"] {
+    --bg: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #1f2940;
+    --text: #e0e0e0;
+    --text-muted: #8899aa;
+    --border: #2a3a5c;
+    --navbar-bg: #0f1629;
+    --navbar-text: #e0e0e0;
+    --brand-bg: #3a7bd5;
+    --brand-text: #ffffff;
+    --tree-bg: #16213e;
+    --tree-hover: #1f2940;
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --input-bg: #1f2940;
+    --input-border: #2a3a5c;
+    --dialog-bg: #1f2940;
+    --log-bg: #0a0d14;
+    --log-text: #c8d8e8;
+    --shimmer-a: rgba(40,50,70,0.9);
+    --shimmer-b: rgba(50,65,90,0.9);
+    --link-color: #5dade2;
+    --upload-zone-bg: #16213e;
+    --upload-zone-border: #3a5080;
+    --category-item-bg: transparent;
+    --category-item-hover: #1f2940;
+}
+
+/* Auto mode: follow system preference */
+@media (prefers-color-scheme: dark) {
+    [data-theme="auto"] {
+        --bg: #1a1a2e;
+        --bg-secondary: #16213e;
+        --bg-card: #1f2940;
+        --text: #e0e0e0;
+        --text-muted: #8899aa;
+        --border: #2a3a5c;
+        --navbar-bg: #0f1629;
+        --navbar-text: #e0e0e0;
+        --brand-bg: #3a7bd5;
+        --brand-text: #ffffff;
+        --tree-bg: #16213e;
+        --tree-hover: #1f2940;
+        --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        --input-bg: #1f2940;
+        --input-border: #2a3a5c;
+        --dialog-bg: #1f2940;
+        --log-bg: #0a0d14;
+        --log-text: #c8d8e8;
+        --shimmer-a: rgba(40,50,70,0.9);
+        --shimmer-b: rgba(50,65,90,0.9);
+        --link-color: #5dade2;
+        --upload-zone-bg: #16213e;
+        --upload-zone-border: #3a5080;
+        --category-item-bg: transparent;
+        --category-item-hover: #1f2940;
+    }
+}
+
+/* ===== Global ===== */
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+a { color: var(--link-color); }
+a:hover { color: var(--link-color); opacity: 0.85; }
+
+/* ===== Navbar ===== */
+.navbar {
+    background-color: var(--navbar-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0.4rem 0.75rem;
+    min-height: 44px;
+}
+
 .navbar-brand {
-    font-size: 1.5rem;
-    font-weight: bold;
-    padding: 0.5rem 1rem;
-    background-color: #007bff; /* Bootstrap primary color */
-    color: white !important;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 0.3rem 0.6rem;
+    background-color: var(--brand-bg);
+    color: var(--brand-text) !important;
     border-radius: 0.25rem;
+    text-decoration: none !important;
 }
+.navbar-brand:hover { opacity: 0.9; }
+.navbar-brand i { margin-right: 0.25rem; }
 
-/* Ensure the link looks like a button */
-.navbar-brand:hover {
-    text-decoration: none;
-    color: white;
+.theme-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
 }
+.theme-toggle:hover { background-color: var(--tree-hover); }
 
-/* Increase the font size of category buttons */
-.btn-outline-secondary {
-    font-size: 1.1rem;
-}
-
-/* Ensure the delete button maintains its size */
-.btn-danger {
-    min-width: 40px;
-}
-
-/* Adjust list-group-item padding for better alignment */
-.list-group-item {
-    padding: 0.75rem 1.25rem;
-    border: 1px solid rgba(0, 0, 0, .125);
-}
-
-/* Hover effect for category buttons */
-.btn-outline-secondary:hover {
-    background-color: #6c757d;
-    color: white;
-}
-
-/* Hover effect for delete buttons */
-.btn-danger:hover {
-    background-color: #c82333;
-    border-color: #bd2130;
-}
-
-/* Style the video player for consistency */
-video.card-img-top {
-    height: 200px;
-    object-fit: cover;
-}
-
-/* Adjust media card shadow and border */
+/* ===== Cards ===== */
 .card {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    border: none;
-    margin: 0.1rem; /* Further reduced margin */
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    box-shadow: var(--card-shadow);
+    border-radius: 0.35rem;
 }
 
-.card-img-top {
-    border-top-left-radius: 0.25rem;
-    border-top-right-radius: 0.25rem;
-    height: 200px;
+.card-body {
+    padding: 0.5rem;
+}
+
+.card-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+}
+
+/* ===== Media cards (gallery) ===== */
+.media-card {
+    overflow: hidden;
+    margin: 0;
+}
+
+.media-card .card-img-top {
+    height: 140px;
     object-fit: cover;
+    border-radius: 0.35rem 0.35rem 0 0;
 }
 
-/* Thumbnail loader overlay */
+.card-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.2rem 0.25rem;
+    gap: 0.2rem;
+}
+
+/* Extra small buttons for card actions */
+.btn-xs {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.35rem;
+    line-height: 1.4;
+    min-height: 26px;
+    min-width: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ===== Gallery grid ===== */
+.gallery-grid {
+    margin-left: -0.2rem;
+    margin-right: -0.2rem;
+}
+.gallery-grid > [class*='col-'] {
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
+}
+
+/* ===== Thumbnail loading ===== */
 .thumb-container {
     position: relative;
+    overflow: hidden;
 }
 
 .thumb-container::before {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(90deg, rgba(230,230,230,0.9) 25%, rgba(245,245,245,0.9) 37%, rgba(230,230,230,0.9) 63%);
+    background: linear-gradient(90deg, var(--shimmer-a) 25%, var(--shimmer-b) 37%, var(--shimmer-a) 63%);
     background-size: 400% 100%;
     opacity: 0;
     transition: opacity 0.2s ease;
     pointer-events: none;
+    z-index: 1;
 }
 
 .thumb-container.loading::before {
@@ -93,6 +224,7 @@ video.card-img-top {
     opacity: 0;
     transition: opacity 0.2s ease;
     pointer-events: none;
+    z-index: 2;
 }
 
 .thumb-container.loading .thumb-spinner {
@@ -104,175 +236,157 @@ video.card-img-top {
     100% { background-position: 0 0; }
 }
 
-/* Play overlay for video posters */
+/* ===== Video play overlay ===== */
 .play-overlay {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 2rem;
+    font-size: 1.8rem;
     color: rgba(255,255,255,0.95);
     text-shadow: 0 2px 6px rgba(0,0,0,0.4);
     pointer-events: none;
+    z-index: 3;
 }
 
-/* Ensure all buttons in the card body have consistent width */
-.card-body .btn {
-    width: 35px; /* Adjust as needed to match other buttons */
-    text-align: center;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.9rem;
+video.card-img-top {
+    height: 140px;
+    object-fit: cover;
 }
 
-/* Adjust the 'X' delete button to match the download buttons */
-.card-body .btn-danger {
-    width: 40px; /* Set width to 40px as per requirement */
-    padding: 0.25rem 0.5rem;
+/* ===== Category header ===== */
+.category-header h5 {
+    font-size: 1rem;
+    font-weight: 600;
 }
 
-/* Ensure the 'Download All' buttons are side by side and narrow */
-.btn-group.btn-group-sm.btn-block {
+/* ===== Download bar ===== */
+.download-bar {
     display: flex;
-    justify-content: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
 }
 
-.btn-group.btn-group-sm.btn-block .btn {
-    flex: 1;
-    margin-right: 5px;
+.download-bar .btn {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
 }
 
-.btn-group.btn-group-sm.btn-block .btn:last-child {
-    margin-right: 0;
+/* ===== Tabs ===== */
+.nav-tabs-compact .nav-link {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
 }
 
-/* Add hover effects for better UX */
-.btn-group.btn-group-sm.btn-block .btn:hover {
-    opacity: 0.8;
+.nav-tabs {
+    border-bottom-color: var(--border);
 }
 
-/* Adjust Bootstrap grid gutters for tighter layout */
-.row {
-    margin-left: -0.1rem; /* Reduced gutter */
-    margin-right: -0.1rem;
+.nav-tabs .nav-link {
+    color: var(--text-muted);
 }
 
-.row > [class*='col-'] {
-    padding-left: 0.1rem; /* Reduced gutter */
-    padding-right: 0.1rem;
+.nav-tabs .nav-link.active {
+    background-color: var(--bg-card);
+    border-color: var(--border) var(--border) var(--bg-card);
+    color: var(--text);
 }
 
-/* Adjust card body padding */
-.card-body {
-    padding: 0.25rem; /* Reduced padding */
-}
-
-
-/* Increase Bootstrap Treeview text size and adjust tree structure */
-#category-tree .treeview-item {
-    font-size: 1.8rem; /* Further increased text size */
-    padding: 15px 20px; /* Increased padding for easier clicking */
-}
-
-#category-tree .tree-icon {
-    font-size: 1.5rem; /* Increased icon size */
-    margin-right: 15px; /* Increased space between icon and text */
-}
-
-/* Optionally, adjust the tree's overall width */
-#category-tree {
-    max-height: 600px;
-    overflow-y: auto;
-}
-
-/* Style the dialog */
-dialog {
-    border: none;
-    border-radius: 5px;
-    padding: 20px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-}
-
-dialog::backdrop {
-    background: rgba(0, 0, 0, 0.5);
-}
-/* static/styles.css */
-
-/* [Existing styles remain unchanged] */
-
-/* Additional Styling */
-
-/* Style the tree container with a border and padding */
+/* ===== Tree (home page) ===== */
 .tree-container {
-    border: 1px solid #ced4da; /* Bootstrap's default border color */
-    border-radius: 0.25rem; /* Rounded corners */
-    background-color: #f8f9fa; /* Light background for contrast */
-    overflow-y: auto; /* Add scroll if content exceeds max height */
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background-color: var(--tree-bg);
+    overflow-y: auto;
+    max-height: 70vh;
 }
 
-/* Adjust Bootstrap Treeview text size and spacing */
-#category-tree .treeview-item {
-    font-size: 1.2rem; /* Increased text size */
-    padding: 10px 20px; /* Increased padding for easier clicking */
+#category-tree .list-group-item {
+    background-color: var(--tree-bg);
+    color: var(--text);
+    border-color: var(--border);
+    padding: 0.6rem 1rem;
+    font-size: 1rem;
 }
 
-#category-tree .tree-icon {
-    font-size: 1.2rem; /* Increased icon size */
-    margin-right: 15px; /* Increased space between icon and text */
-}
-
-/* Optional: Enhance the appearance of the tree nodes */
-#category-tree .treeview-item:hover {
-    background-color: #e9ecef; /* Light hover effect */
-    border-radius: 0.25rem;
-}
-
-/* Style the delete button/icon within category view */
-.btn-danger.btn-lg {
-    /* Ensure the delete button aligns with the upload button */
-    vertical-align: middle;
-}
-
-/* Ensure the delete form is displayed inline with proper spacing */
-.delete-form {
-    display: inline-block;
-    margin-left: 10px;
-}
-
-/* Ensure the tree view is responsive */
-@media (max-width: 767.98px) {
-  
-    #category-tree .treeview-item {
-        font-size: 1rem;
-        padding: 8px 15px;
-    }
-    
-    #category-tree .tree-icon {
-        font-size: 1rem;
-        margin-right: 10px;
-    }
+#category-tree .list-group-item:hover {
+    background-color: var(--tree-hover);
 }
 
 .treeview span.icon {
-    margin-right: 10px !important;
+    margin-right: 8px !important;
 }
 
 .list-group {
-    border-color: #cacaca !important;
+    border-color: var(--border) !important;
     border-width: 1px !important;
     border-style: solid !important;
 }
 
-/* Admin page */
+/* ===== Forms ===== */
+.form-control {
+    background-color: var(--input-bg);
+    border-color: var(--input-border);
+    color: var(--text);
+}
+.form-control:focus {
+    background-color: var(--input-bg);
+    color: var(--text);
+    border-color: var(--brand-bg);
+}
+
+.create-category-form {
+    margin-top: 0.5rem;
+}
+
+/* ===== Upload page ===== */
+.upload-page {
+    max-width: 500px;
+}
+
+.upload-drop-zone {
+    position: relative;
+    border: 2px dashed var(--upload-zone-border);
+    border-radius: 0.5rem;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    background-color: var(--upload-zone-bg);
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.upload-drop-zone.drag-over {
+    border-color: var(--brand-bg);
+    background-color: var(--tree-hover);
+}
+
+.upload-file-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+
+.upload-submit-btn {
+    font-size: 1.1rem;
+    min-height: 48px;
+}
+
+/* ===== Admin ===== */
 .log-box {
-    background-color: #0f1115;
-    color: #e7e7e7;
+    background-color: var(--log-bg);
+    color: var(--log-text);
     font-family: "SFMono-Regular", Menlo, Consolas, monospace;
-    min-height: 320px;
-    max-height: 420px;
+    font-size: 0.75rem;
+    min-height: 200px;
+    max-height: 350px;
     overflow-y: auto;
-    padding: 12px;
-    border-radius: 6px;
+    padding: 0.5rem;
+    border-radius: 0.35rem;
     white-space: pre-wrap;
+    word-break: break-all;
 }
 
 #jobs-table tbody tr {
@@ -283,7 +397,234 @@ dialog::backdrop {
     color: #dc3545 !important;
 }
 
-.admin-btn {
-    width: 100% !important;
-    padding: 0.6rem 0.75rem;
+/* Category admin list */
+.category-admin-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.category-admin-item {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    background-color: var(--category-item-bg);
+}
+.category-admin-item:last-child { border-bottom: none; }
+.category-admin-item:hover { background-color: var(--category-item-hover); }
+
+.category-admin-link {
+    font-size: 0.85rem;
+    color: var(--text);
+    text-decoration: none;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.category-admin-link:hover { color: var(--link-color); }
+
+/* ===== Dialog ===== */
+.delete-dialog {
+    border: none;
+    border-radius: 0.5rem;
+    padding: 1.25rem;
+    background-color: var(--dialog-bg);
+    color: var(--text);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    max-width: 90vw;
+    width: 320px;
+}
+
+.delete-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.dialog-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
+/* ===== Bootstrap overrides for dark ===== */
+[data-theme="dark"] .btn-outline-secondary,
+[data-theme="dark"] .btn-outline-primary,
+[data-theme="dark"] .btn-outline-info,
+[data-theme="dark"] .btn-outline-warning,
+[data-theme="dark"] .btn-outline-danger {
+    border-color: var(--border);
+    color: var(--text);
+}
+
+[data-theme="dark"] .table {
+    color: var(--text);
+}
+
+[data-theme="dark"] .table-hover tbody tr:hover {
+    color: var(--text);
+    background-color: var(--tree-hover);
+}
+
+[data-theme="dark"] .badge-light {
+    background-color: var(--bg-secondary);
+    color: var(--text);
+}
+
+[data-theme="dark"] .alert-success {
+    background-color: #1a3a2a;
+    border-color: #2a5a3a;
+    color: #7dcea0;
+}
+
+[data-theme="dark"] .alert-danger {
+    background-color: #3a1a1a;
+    border-color: #5a2a2a;
+    color: #e08080;
+}
+
+[data-theme="dark"] .progress {
+    background-color: var(--bg-secondary);
+}
+
+[data-theme="dark"] .text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Auto mode dark overrides */
+@media (prefers-color-scheme: dark) {
+    [data-theme="auto"] .btn-outline-secondary,
+    [data-theme="auto"] .btn-outline-primary,
+    [data-theme="auto"] .btn-outline-info,
+    [data-theme="auto"] .btn-outline-warning,
+    [data-theme="auto"] .btn-outline-danger {
+        border-color: var(--border);
+        color: var(--text);
+    }
+
+    [data-theme="auto"] .table {
+        color: var(--text);
+    }
+
+    [data-theme="auto"] .table-hover tbody tr:hover {
+        color: var(--text);
+        background-color: var(--tree-hover);
+    }
+
+    [data-theme="auto"] .badge-light {
+        background-color: var(--bg-secondary);
+        color: var(--text);
+    }
+
+    [data-theme="auto"] .alert-success {
+        background-color: #1a3a2a;
+        border-color: #2a5a3a;
+        color: #7dcea0;
+    }
+
+    [data-theme="auto"] .alert-danger {
+        background-color: #3a1a1a;
+        border-color: #5a2a2a;
+        color: #e08080;
+    }
+
+    [data-theme="auto"] .progress {
+        background-color: var(--bg-secondary);
+    }
+
+    [data-theme="auto"] .text-muted {
+        color: var(--text-muted) !important;
+    }
+}
+
+/* ===== Mobile: 375px and below (iPhone mini) ===== */
+@media (max-width: 575.98px) {
+    .navbar {
+        padding: 0.3rem 0.5rem;
+    }
+
+    .navbar-brand {
+        font-size: 0.85rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .category-header h5 {
+        font-size: 0.9rem;
+    }
+
+    .media-card .card-img-top,
+    video.card-img-top {
+        height: 110px;
+    }
+
+    .btn-xs {
+        font-size: 0.6rem;
+        padding: 0.1rem 0.25rem;
+        min-height: 24px;
+        min-width: 24px;
+    }
+
+    .download-bar .btn {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.35rem;
+    }
+
+    .nav-tabs-compact .nav-link {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .card-actions {
+        padding: 0.15rem 0.2rem;
+    }
+
+    .gallery-grid {
+        margin-left: -0.15rem;
+        margin-right: -0.15rem;
+    }
+    .gallery-grid > [class*='col-'] {
+        padding-left: 0.15rem;
+        padding-right: 0.15rem;
+    }
+
+    #category-tree .list-group-item {
+        font-size: 0.9rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .log-box {
+        min-height: 150px;
+        max-height: 250px;
+        font-size: 0.65rem;
+    }
+
+    .upload-drop-zone {
+        padding: 1rem 0.75rem;
+    }
+}
+
+/* ===== Medium screens ===== */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .media-card .card-img-top,
+    video.card-img-top {
+        height: 130px;
+    }
+}
+
+/* ===== Large screens ===== */
+@media (min-width: 768px) {
+    .media-card .card-img-top,
+    video.card-img-top {
+        height: 160px;
+    }
+
+    .card-body {
+        padding: 0.6rem;
+    }
+}
+
+@media (min-width: 992px) {
+    .media-card .card-img-top,
+    video.card-img-top {
+        height: 180px;
+    }
 }

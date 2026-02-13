@@ -1,56 +1,73 @@
 {% extends 'base.html' %}
 {% block content %}
-<h2>Admin Scripts</h2>
+<h5 class="mb-3">Admin</h5>
+
+<!-- Category Management -->
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="card-title">Categories</h6>
+        {% if categories %}
+        <div class="category-admin-list">
+            {% for cat in categories %}
+            <div class="category-admin-item d-flex justify-content-between align-items-center" data-category="{{ cat }}">
+                <a href="{{ url_for('category_view', category=cat) }}" class="category-admin-link">{{ cat }}</a>
+                <button class="btn btn-outline-danger btn-xs delete-category-btn" data-category="{{ cat }}" title="Delete">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0">No categories yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Scripts -->
 <div class="row">
-    <div class="col-md-4">
+    <div class="col-12 col-md-4">
         <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">Run script</h5>
+                <h6 class="card-title">Run script</h6>
                 <div class="form-group">
-                    <label for="script-select">Script</label>
-                    <select id="script-select" class="form-control"></select>
+                    <label for="script-select" class="small">Script</label>
+                    <select id="script-select" class="form-control form-control-sm"></select>
                 </div>
                 <p id="script-description" class="text-muted small mb-2"></p>
                 <div id="script-params"></div>
                 <div id="admin-status" class="small text-muted mb-2"></div>
-                <button id="run-script-btn" type="button" class="btn btn-primary btn-block mb-2 admin-btn">Run</button>
-                <button id="stop-script-btn" type="button" class="btn btn-outline-danger btn-block admin-btn" disabled>Stop running job</button>
+                <button id="run-script-btn" type="button" class="btn btn-primary btn-block btn-sm mb-2">Run</button>
+                <button id="stop-script-btn" type="button" class="btn btn-outline-danger btn-block btn-sm" disabled>Stop</button>
             </div>
         </div>
-        <div class="card">
+        <div class="card mb-3 d-none d-md-block">
             <div class="card-body">
-                <h6 class="card-title">What to expect</h6>
+                <h6 class="card-title">Info</h6>
                 <ul class="small pl-3 mb-0">
-                    <li>Scripts run in the background; output is captured below.</li>
-                    <li>Processed items are remembered so reruns resume instead of starting over.</li>
-                    <li>Stopping a job is cooperative; the script exits after finishing the current file.</li>
+                    <li>Scripts run in the background.</li>
+                    <li>Processed items are remembered for resume.</li>
+                    <li>Stopping is cooperative.</li>
                 </ul>
             </div>
         </div>
     </div>
-    <div class="col-md-8">
+    <div class="col-12 col-md-8">
         <div class="card mb-3">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h5 class="card-title mb-0">Live output</h5>
-                    <span id="active-job-badge" class="badge badge-secondary">No job selected</span>
+                    <h6 class="card-title mb-0">Live output</h6>
+                    <span id="active-job-badge" class="badge badge-secondary">No job</span>
                 </div>
                 <div id="log-output" class="log-box">Select a job to view output.</div>
             </div>
         </div>
-        <div class="card">
+        <div class="card mb-3">
             <div class="card-body">
-                <h5 class="card-title">Jobs</h5>
+                <h6 class="card-title">Jobs</h6>
                 <div class="table-responsive">
                     <table class="table table-sm table-hover" id="jobs-table">
                         <thead>
-                            <tr>
-                                <th>Script</th>
-                                <th>Status</th>
-                                <th>Processed</th>
-                                <th>Started</th>
-                                <th></th>
-                            </tr>
+                            <tr><th>Script</th><th>Status</th><th>#</th><th>Started</th><th></th></tr>
                         </thead>
                         <tbody></tbody>
                     </table>
@@ -59,6 +76,17 @@
         </div>
     </div>
 </div>
+
+<!-- Delete category confirmation -->
+<dialog id="delete-category-dialog" class="delete-dialog">
+    <form method="dialog">
+        <p id="delete-category-text">Delete this category?</p>
+        <div class="dialog-actions">
+            <button value="cancel" class="btn btn-sm btn-secondary">Cancel</button>
+            <button id="confirm-delete-category" value="default" class="btn btn-sm btn-danger">Delete</button>
+        </div>
+    </form>
+</dialog>
 
 <script>
 const scripts = {{ scripts|tojson }};
@@ -69,52 +97,93 @@ const routes = {
     log: "{{ url_for('job_log', job_id='JOB_ID') }}",
     stop: "{{ url_for('stop_job', job_id='JOB_ID') }}",
 };
+const deleteCategoryRouteTemplate = "{{ url_for('delete_category', category='CATEGORY_PLACEHOLDER') }}";
 
 let activeJobId = null;
 let logOffset = 0;
 let logTimer = null;
 const LOG_POLL_MS = 1200;
 
+/* Category delete handling */
+(function() {
+    const dialog = document.getElementById('delete-category-dialog');
+    const dialogText = document.getElementById('delete-category-text');
+    const confirmBtn = document.getElementById('confirm-delete-category');
+    let pendingCategory = null;
+
+    document.querySelectorAll('.delete-category-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            pendingCategory = this.dataset.category;
+            dialogText.textContent = "Delete category '" + pendingCategory + "' and all its contents?";
+            dialog.showModal();
+        });
+    });
+
+    confirmBtn.addEventListener('click', function() {
+        if (!pendingCategory) return;
+        const url = deleteCategoryRouteTemplate.replace('CATEGORY_PLACEHOLDER', pendingCategory);
+        fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                var item = document.querySelector('.category-admin-item[data-category="' + pendingCategory + '"]');
+                if (item) item.remove();
+            } else {
+                alert(data.message || 'Failed to delete category.');
+            }
+            dialog.close();
+        })
+        .catch(function() {
+            alert('Error deleting category.');
+            dialog.close();
+        });
+    });
+})();
+
+/* Script management */
 function scriptMeta(name) {
-    return scripts.find(s => s.name === name);
+    return scripts.find(function(s) { return s.name === name; });
 }
 
 function renderScriptSelector() {
-    const select = document.getElementById('script-select');
+    var select = document.getElementById('script-select');
     select.innerHTML = '';
-    scripts.forEach((script, idx) => {
-        const option = document.createElement('option');
+    scripts.forEach(function(script, idx) {
+        var option = document.createElement('option');
         option.value = script.name;
         option.textContent = script.label || script.name;
         if (idx === 0) option.selected = true;
         select.appendChild(option);
     });
-    select.addEventListener('change', () => updateScriptDetails(select.value));
-    if (scripts.length) {
-        updateScriptDetails(select.value);
-    }
+    select.addEventListener('change', function() { updateScriptDetails(select.value); });
+    if (scripts.length) updateScriptDetails(select.value);
 }
 
 function updateScriptDetails(scriptName) {
-    const details = scriptMeta(scriptName);
+    var details = scriptMeta(scriptName);
     document.getElementById('script-description').textContent = details?.description || '';
-    const paramsContainer = document.getElementById('script-params');
+    var paramsContainer = document.getElementById('script-params');
     paramsContainer.innerHTML = '';
     if (!details || !details.params) return;
-    Object.entries(details.params).forEach(([key, meta]) => {
-        const group = document.createElement('div');
+    Object.entries(details.params).forEach(function(entry) {
+        var key = entry[0], meta = entry[1];
+        var group = document.createElement('div');
         group.className = 'form-group';
-        const label = document.createElement('label');
-        label.setAttribute('for', `param-${key}`);
+        var label = document.createElement('label');
+        label.className = 'small';
+        label.setAttribute('for', 'param-' + key);
         label.textContent = meta.label || key;
-        const input = document.createElement('input');
-        input.className = 'form-control';
-        input.id = `param-${key}`;
+        var input = document.createElement('input');
+        input.className = 'form-control form-control-sm';
+        input.id = 'param-' + key;
         input.name = key;
-        input.placeholder = meta.placeholder || '';
-        if (meta.required) {
-            input.required = true;
-        }
+        if (meta.required) input.required = true;
         group.appendChild(label);
         group.appendChild(input);
         paramsContainer.appendChild(group);
@@ -122,79 +191,56 @@ function updateScriptDetails(scriptName) {
 }
 
 function collectParams(scriptName) {
-    const details = scriptMeta(scriptName) || {};
-    const params = {};
+    var details = scriptMeta(scriptName) || {};
+    var params = {};
     if (!details.params) return params;
-    Object.keys(details.params).forEach((key) => {
-        const input = document.getElementById(`param-${key}`);
+    Object.keys(details.params).forEach(function(key) {
+        var input = document.getElementById('param-' + key);
         if (!input) return;
-        const value = input.value.trim();
+        var value = input.value.trim();
         params[key] = value.length ? value : null;
     });
     return params;
 }
 
 function statusBadge(status) {
-    const map = {
-        running: 'badge-primary',
-        completed: 'badge-success',
-        failed: 'badge-danger',
-        stopped: 'badge-warning',
-        queued: 'badge-secondary',
-    };
-    const cls = map[status] || 'badge-secondary';
-    return `<span class="badge ${cls} text-uppercase">${status}</span>`;
+    var map = { running: 'badge-primary', completed: 'badge-success', failed: 'badge-danger', stopped: 'badge-warning', queued: 'badge-secondary' };
+    return '<span class="badge ' + (map[status] || 'badge-secondary') + ' text-uppercase">' + status + '</span>';
 }
 
 function renderJobs(jobList) {
-    const tbody = document.querySelector('#jobs-table tbody');
+    var tbody = document.querySelector('#jobs-table tbody');
     tbody.innerHTML = '';
-    jobList.forEach((job) => {
-        const row = document.createElement('tr');
-        row.className = 'job-row';
+    jobList.forEach(function(job) {
+        var row = document.createElement('tr');
         row.dataset.jobId = job.id;
-        const scriptLabel = (scriptMeta(job.script)?.label) || job.script;
-        row.innerHTML = `
-            <td>${scriptLabel}</td>
-            <td>${statusBadge(job.status)}</td>
-            <td>${job.processed_count || 0}</td>
-            <td class="small text-muted">${job.started_at || ''}</td>
-            <td><button class="btn btn-link btn-sm p-0 view-log" data-job="${job.id}">View log</button></td>
-        `;
-        row.addEventListener('click', (event) => {
-            if (event.target.classList.contains('view-log')) {
-                event.stopPropagation();
-            }
-            selectJob(job.id);
-        });
+        var label = (scriptMeta(job.script)?.label) || job.script;
+        row.innerHTML = '<td>' + label + '</td><td>' + statusBadge(job.status) + '</td><td>' + (job.processed_count || 0) + '</td><td class="small text-muted">' + (job.started_at || '') + '</td><td><button class="btn btn-link btn-sm p-0">log</button></td>';
+        row.addEventListener('click', function() { selectJob(job.id); });
         tbody.appendChild(row);
     });
 }
 
-function setStatusMessage(message, isError = false) {
-    const el = document.getElementById('admin-status');
-    el.textContent = message;
-    el.classList.toggle('text-danger', isError);
+function setStatusMessage(msg, isError) {
+    var el = document.getElementById('admin-status');
+    el.textContent = msg;
+    el.classList.toggle('text-danger', !!isError);
 }
 
 function appendLog(text) {
     if (!text) return;
-    const logBox = document.getElementById('log-output');
-    const atBottom = Math.abs(logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight) < 30;
+    var logBox = document.getElementById('log-output');
+    var atBottom = Math.abs(logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight) < 30;
     logBox.textContent += text;
-    if (atBottom) {
-        logBox.scrollTop = logBox.scrollHeight;
-    }
+    if (atBottom) logBox.scrollTop = logBox.scrollHeight;
 }
 
 async function fetchLog() {
     if (!activeJobId) return;
-    const res = await fetch(`${routes.log.replace('JOB_ID', activeJobId)}?offset=${logOffset}`);
+    var res = await fetch(routes.log.replace('JOB_ID', activeJobId) + '?offset=' + logOffset);
     if (!res.ok) return;
-    const payload = await res.json();
-    if (typeof payload.offset === 'number') {
-        logOffset = payload.offset;
-    }
+    var payload = await res.json();
+    if (typeof payload.offset === 'number') logOffset = payload.offset;
     appendLog(payload.data);
     if (payload.status && payload.status !== 'running') {
         document.getElementById('stop-script-btn').disabled = true;
@@ -212,94 +258,75 @@ function startLogPolling() {
 
 async function refreshJobs() {
     try {
-        const res = await fetch(routes.list);
+        var res = await fetch(routes.list);
         if (!res.ok) return;
-        const payload = await res.json();
+        var payload = await res.json();
         jobs = payload.jobs || [];
         renderJobs(jobs);
-        const active = jobs.find(j => j.id === activeJobId);
-        if (active) {
-            updateActiveBadge(active);
-        }
-    } catch (err) {
-        console.error(err);
-    }
+        var active = jobs.find(function(j) { return j.id === activeJobId; });
+        if (active) updateActiveBadge(active);
+    } catch(e) {}
 }
 
 async function runScript(event) {
     event.preventDefault();
-    const scriptName = document.getElementById('script-select').value;
+    var scriptName = document.getElementById('script-select').value;
     if (!scriptName) return;
-    const params = collectParams(scriptName);
-    setStatusMessage('Starting script…');
+    setStatusMessage('Starting...');
     try {
-        const res = await fetch(routes.start, {
+        var res = await fetch(routes.start, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({script: scriptName, params})
+            body: JSON.stringify({script: scriptName, params: collectParams(scriptName)})
         });
-        const payload = await res.json();
-        if (!res.ok || payload.error) {
-            setStatusMessage(payload.error || 'Failed to start script.', true);
-            return;
-        }
+        var payload = await res.json();
+        if (!res.ok || payload.error) { setStatusMessage(payload.error || 'Failed.', true); return; }
         await refreshJobs();
-        setStatusMessage('Script started.');
+        setStatusMessage('Started.');
         selectJob(payload.id);
-    } catch (err) {
-        console.error(err);
-        setStatusMessage('Error starting script.', true);
-    }
+    } catch(e) { setStatusMessage('Error.', true); }
 }
 
 async function stopScript(event) {
     event.preventDefault();
     if (!activeJobId) return;
     try {
-        const res = await fetch(routes.stop.replace('JOB_ID', activeJobId), {method: 'POST'});
-        const payload = await res.json();
-        if (!res.ok || payload.error) {
-            setStatusMessage(payload.error || 'Unable to stop job.', true);
-            return;
-        }
-        setStatusMessage('Stop requested. Waiting for script to exit…');
-    } catch (err) {
-        console.error(err);
-    }
+        var res = await fetch(routes.stop.replace('JOB_ID', activeJobId), {method: 'POST'});
+        var payload = await res.json();
+        if (!res.ok || payload.error) { setStatusMessage(payload.error || 'Unable to stop.', true); return; }
+        setStatusMessage('Stop requested...');
+    } catch(e) {}
 }
 
 function selectJob(jobId) {
     activeJobId = jobId;
     logOffset = 0;
-    const job = jobs.find(j => j.id === jobId);
+    var job = jobs.find(function(j) { return j.id === jobId; });
     updateActiveBadge(job);
     document.getElementById('log-output').textContent = '';
     startLogPolling();
 }
 
 function updateActiveBadge(job) {
-    const badge = document.getElementById('active-job-badge');
+    var badge = document.getElementById('active-job-badge');
     if (!job) {
-        badge.textContent = 'Job selected';
+        badge.textContent = 'No job';
         badge.className = 'badge badge-secondary';
         document.getElementById('stop-script-btn').disabled = true;
         return;
     }
-    const isRunning = job.status === 'running';
-    badge.textContent = `${job.script} (${job.status})`;
-    badge.className = `badge badge-pill badge-${isRunning ? 'primary' : 'secondary'}`;
+    var isRunning = job.status === 'running';
+    badge.textContent = job.script + ' (' + job.status + ')';
+    badge.className = 'badge badge-pill badge-' + (isRunning ? 'primary' : 'secondary');
     document.getElementById('stop-script-btn').disabled = !isRunning;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
     renderScriptSelector();
     renderJobs(jobs);
-    const running = jobs.find(j => j.status === 'running');
-    if (running) {
-        selectJob(running.id);
-    } else if (jobs.length) {
-        selectJob(jobs[0].id);
-    }
+    var running = jobs.find(function(j) { return j.status === 'running'; });
+    if (running) selectJob(running.id);
+    else if (jobs.length) selectJob(jobs[0].id);
     document.getElementById('run-script-btn').addEventListener('click', runScript);
     document.getElementById('stop-script-btn').addEventListener('click', stopScript);
     setInterval(refreshJobs, 4000);

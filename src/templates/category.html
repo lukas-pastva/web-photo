@@ -1,50 +1,55 @@
-<!-- templates/category.html -->
 {% extends 'base.html' %}
 {% block content %}
-<h2>{{ category }}</h2>
-<div class="mb-3">
-    <!-- Upload Button -->
-    <a href="{{ url_for('upload_file', category=category) }}" class="btn btn-success btn-lg">Upload</a>
-    
-    <!-- Delete Button -->
-    <form action="{{ url_for('delete_category', category=category) }}" 
-          method="post" 
-          class="d-inline-block ml-2" 
-          onsubmit="return confirm('Are you sure you want to delete this category? This action cannot be undone.');">
-        <button type="submit" class="btn btn-danger btn-lg">Delete Category</button>
-    </form>
+<!-- Category header -->
+<div class="category-header d-flex align-items-center flex-wrap mb-2">
+    <h5 class="mb-0 mr-2">{{ category }}</h5>
+    <a href="{{ url_for('upload_file', category=category) }}" class="btn btn-success btn-sm">
+        <i class="fas fa-upload"></i> Upload
+    </a>
 </div>
-<!-- Download All Files Buttons -->
-<div class="btn-group btn-group-sm btn-block mb-3" role="group" aria-label="Download All Sizes">
-    <a href="{{ url_for('download_category', category=category, size='source') }}" class="btn btn-primary" title="Download All Original">↓ original</a>
-    <a href="{{ url_for('download_category', category=category, size='largest') }}" class="btn btn-info" title="Download All Large">↓ large</a>
-    <a href="{{ url_for('download_category', category=category, size='medium') }}" class="btn btn-secondary" title="Download All Medium">↓ medium</a>
-    <!-- Download Videos Button -->
-    <a href="{{ url_for('download_videos', category=category) }}" class="btn btn-warning" title="Download Videos">↓ videos</a>
+
+<!-- Download buttons row -->
+<div class="download-bar mb-2">
+    <a href="{{ url_for('download_category', category=category, size='source') }}" class="btn btn-outline-primary btn-sm" title="Original">
+        <i class="fas fa-download"></i> Orig
+    </a>
+    <a href="{{ url_for('download_category', category=category, size='largest') }}" class="btn btn-outline-info btn-sm" title="Large">
+        <i class="fas fa-download"></i> Large
+    </a>
+    <a href="{{ url_for('download_category', category=category, size='medium') }}" class="btn btn-outline-secondary btn-sm" title="Medium">
+        <i class="fas fa-download"></i> Med
+    </a>
+    <a href="{{ url_for('download_videos', category=category) }}" class="btn btn-outline-warning btn-sm" title="Videos">
+        <i class="fas fa-download"></i> Vids
+    </a>
 </div>
 
 <!-- Media Tabs -->
-<ul class="nav nav-tabs" id="mediaTabs" role="tablist">
+<ul class="nav nav-tabs nav-tabs-compact" id="mediaTabs" role="tablist">
   <li class="nav-item">
-    <a class="nav-link active" id="images-tab" data-toggle="tab" href="#images-pane" role="tab" aria-controls="images-pane" aria-selected="true">Images</a>
+    <a class="nav-link active" id="images-tab" data-toggle="tab" href="#images-pane" role="tab">
+      Images{% if images %} <span class="badge badge-light">{{ images|length }}</span>{% endif %}
+    </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="videos-tab" data-toggle="tab" href="#videos-pane" role="tab" aria-controls="videos-pane" aria-selected="false">Videos</a>
+    <a class="nav-link" id="videos-tab" data-toggle="tab" href="#videos-pane" role="tab">
+      Videos{% if videos %} <span class="badge badge-light">{{ videos|length }}</span>{% endif %}
+    </a>
   </li>
-  </ul>
+</ul>
 
-<div class="tab-content mt-3">
+<div class="tab-content mt-2">
   <!-- Images Pane -->
-  <div class="tab-pane fade show active" id="images-pane" role="tabpanel" aria-labelledby="images-tab">
-    <div class="row" id="gallery">
+  <div class="tab-pane fade show active" id="images-pane" role="tabpanel">
+    <div class="row gallery-grid" id="gallery">
       {% for file in images %}
-      <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-        <div class="card mb-3">
-          <!-- Gallery Item with loader -->
+      <div class="col-4 col-sm-3 col-md-3 col-lg-2 mb-2">
+        <div class="card media-card">
           <a href="{{ url_for('uploaded_file', filename=category + '/largest/' + file.filename) }}"
              data-pswp-title="{{ file.filename }}"
              data-pswp-width="{{ file.width }}"
              data-pswp-height="{{ file.height }}"
+             data-pswp-meta='{{ file.meta | tojson }}'
              class="gallery-item">
               <div class="thumb-container loading">
                 <img src="{{ url_for('uploaded_file', filename=category + '/thumbnail/' + file.name + '.jpeg') }}"
@@ -52,59 +57,56 @@
                      alt="{{ file.filename }}"
                      loading="lazy"
                      decoding="async"
-                     onload="this.closest('div.thumb-container')?.classList.remove('loading')"
-                     onerror="this.closest('div.thumb-container')?.classList.remove('loading'); this.src='{{ url_for('static', filename='placeholder.jpg') }}'">
+                     onload="this.closest('.thumb-container')?.classList.remove('loading')"
+                     onerror="this.closest('.thumb-container')?.classList.remove('loading'); this.src='{{ url_for('static', filename='placeholder.jpg') }}'">
                 <div class="thumb-spinner spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
               </div>
           </a>
-          <div class="card-body d-flex justify-content-between align-items-center">
-            <div class="btn-group btn-group-sm" role="group" aria-label="Download Buttons">
-              <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" class="btn btn-primary btn-sm" download title="Source (L)">L</a>
-              <a href="{{ url_for('download_single', category=category, size='largest', filename=file.filename) }}" class="btn btn-info btn-sm" download title="Largest (M)">M</a>
-              <a href="{{ url_for('download_single', category=category, size='medium', filename=file.filename) }}" class="btn btn-secondary btn-sm" download title="Medium (S)">S</a>
+          <div class="card-actions">
+            <div class="btn-group btn-group-sm" role="group">
+              <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" class="btn btn-outline-primary btn-xs" download title="Source">L</a>
+              <a href="{{ url_for('download_single', category=category, size='largest', filename=file.filename) }}" class="btn btn-outline-info btn-xs" download title="Large">M</a>
+              <a href="{{ url_for('download_single', category=category, size='medium', filename=file.filename) }}" class="btn btn-outline-secondary btn-xs" download title="Medium">S</a>
             </div>
             <form action="{{ url_for('delete_photo', category=category, filename=file.filename) }}" method="post" class="mb-0 delete-form" data-filename="{{ file.filename }}">
-              <button type="submit" class="btn btn-danger btn-sm" title="Delete">X</button>
+              <button type="submit" class="btn btn-outline-danger btn-xs" title="Delete"><i class="fas fa-trash-alt"></i></button>
             </form>
           </div>
         </div>
       </div>
       {% else %}
-      <p class="px-3">No images in this category.</p>
+      <p class="px-3 text-muted">No images in this category.</p>
       {% endfor %}
     </div>
   </div>
 
   <!-- Videos Pane -->
-  <div class="tab-pane fade" id="videos-pane" role="tabpanel" aria-labelledby="videos-tab">
-    <div class="row" id="videos-grid">
+  <div class="tab-pane fade" id="videos-pane" role="tabpanel">
+    <div class="row gallery-grid" id="videos-grid">
       {% for video in videos %}
-      <div class="col-6 col-sm-4 col-md-3 col-lg-2">
-        <div class="card mb-3">
-          <!-- Poster with play overlay; actual video loads on click -->
+      <div class="col-4 col-sm-3 col-md-3 col-lg-2 mb-2">
+        <div class="card media-card">
           <div class="thumb-container loading video-poster" data-video-src="{{ url_for('uploaded_file', filename=category + '/source/' + video.filename) }}">
             <img src="{{ video.poster }}"
                  class="card-img-top"
                  alt="{{ video.filename }}"
                  loading="lazy"
                  decoding="async"
-                 onload="this.closest('div.thumb-container')?.classList.remove('loading')"
-                 onerror="this.closest('div.thumb-container')?.classList.remove('loading'); this.src='{{ url_for('static', filename='placeholder.jpg') }}'">
+                 onload="this.closest('.thumb-container')?.classList.remove('loading')"
+                 onerror="this.closest('.thumb-container')?.classList.remove('loading'); this.src='{{ url_for('static', filename='placeholder.jpg') }}'">
             <div class="thumb-spinner spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
             <div class="play-overlay"><i class="fas fa-play"></i></div>
           </div>
-          <div class="card-body d-flex justify-content-between align-items-center">
-            <div class="btn-group btn-group-sm" role="group" aria-label="Download Buttons">
-              <a href="{{ url_for('download_single', category=category, size='source', filename=video.filename) }}" class="btn btn-primary btn-sm" download title="Download Video">L</a>
-            </div>
+          <div class="card-actions">
+            <a href="{{ url_for('download_single', category=category, size='source', filename=video.filename) }}" class="btn btn-outline-primary btn-xs" download title="Download"><i class="fas fa-download"></i></a>
             <form action="{{ url_for('delete_photo', category=category, filename=video.filename) }}" method="post" class="mb-0 delete-form" data-filename="{{ video.filename }}">
-              <button type="submit" class="btn btn-danger btn-sm" title="Delete">X</button>
+              <button type="submit" class="btn btn-outline-danger btn-xs" title="Delete"><i class="fas fa-trash-alt"></i></button>
             </form>
           </div>
         </div>
       </div>
       {% else %}
-      <p class="px-3">No videos in this category.</p>
+      <p class="px-3 text-muted">No videos in this category.</p>
       {% endfor %}
     </div>
   </div>
@@ -112,29 +114,18 @@
 
 <!-- PhotoSwipe Container -->
 <div class="pswp" tabindex="-1" role="dialog" aria-hidden="true">
-    <!-- Background -->
     <div class="pswp__bg"></div>
-    <!-- Slides wrapper -->
     <div class="pswp__scroll-wrap">
-        <!-- Container that holds slides -->
         <div class="pswp__container">
-            <!-- Individual slides -->
             <div class="pswp__item"></div>
             <div class="pswp__item"></div>
             <div class="pswp__item"></div>
         </div>
-        <!-- Default UI -->
         <div class="pswp__ui pswp__ui--hidden">
             <div class="pswp__top-bar">
-                <!-- Close button -->
                 <button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
-                <!-- Share button -->
-                <button class="pswp__button pswp__button--share" title="Share"></button>
-                <!-- Fullscreen button -->
                 <button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
-                <!-- Zoom button -->
                 <button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>
-                <!-- Preloader -->
                 <div class="pswp__preloader">
                     <div class="pswp__preloader__icn">
                       <div class="pswp__preloader__cut">
@@ -142,15 +133,10 @@
                       </div>
                     </div>
                 </div>
-                <!-- Counter -->
                 <div class="pswp__counter"></div>
             </div>
-            <!-- Navigation -->
-            <div class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
-            </div>
-            <div class="pswp__button pswp__button--arrow--right" title="Next (arrow right)">
-            </div>
-            <!-- Caption -->
+            <div class="pswp__button pswp__button--arrow--left" title="Previous"></div>
+            <div class="pswp__button pswp__button--arrow--right" title="Next"></div>
             <div class="pswp__caption">
                 <div class="pswp__caption__center"></div>
             </div>
@@ -158,18 +144,17 @@
     </div>
 </div>
 
-<!-- Confirmation Dialog -->
-<dialog id="delete-confirmation-dialog">
+<!-- Delete confirmation dialog -->
+<dialog id="delete-confirmation-dialog" class="delete-dialog">
     <form method="dialog">
         <p id="dialog-text">Are you sure you want to delete this item?</p>
-        <menu>
-            <button value="cancel">Cancel</button>
-            <button id="confirm-delete" value="default">Delete</button>
-        </menu>
+        <div class="dialog-actions">
+            <button value="cancel" class="btn btn-sm btn-secondary">Cancel</button>
+            <button id="confirm-delete" value="default" class="btn btn-sm btn-danger">Delete</button>
+        </div>
     </form>
 </dialog>
 
-<!-- JavaScript to Initialize PhotoSwipe -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const deleteForms = document.querySelectorAll('.delete-form');
@@ -178,119 +163,109 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmDeleteButton = document.getElementById('confirm-delete');
     let currentForm = null;
 
-    // Select the PhotoSwipe container
+    // PhotoSwipe setup
     const pswpElement = document.querySelectorAll('.pswp')[0];
-    const uiElement = PhotoSwipeUI_Default; // PhotoSwipe 4.x UI
-
-    // Collect all gallery items
+    const uiElement = PhotoSwipeUI_Default;
     const galleryLinks = document.querySelectorAll('.gallery-item');
-
-    // Array to hold all gallery items
     const items = [];
 
-    galleryLinks.forEach(link => {
+    galleryLinks.forEach(function(link) {
         const src = link.getAttribute('href');
         const title = link.getAttribute('data-pswp-title');
-        const width = parseInt(link.getAttribute('data-pswp-width')) || 1024;  // Fallback width
-        const height = parseInt(link.getAttribute('data-pswp-height')) || 768; // Fallback height
+        const width = parseInt(link.getAttribute('data-pswp-width')) || 1024;
+        const height = parseInt(link.getAttribute('data-pswp-height')) || 768;
+
+        let metaHtml = '';
+        try {
+            const meta = JSON.parse(link.getAttribute('data-pswp-meta') || '{}');
+            const parts = [];
+            if (meta.camera) parts.push(meta.camera);
+            if (meta.date) parts.push(meta.date);
+            if (meta.aperture) parts.push(meta.aperture);
+            if (meta.shutter) parts.push(meta.shutter);
+            if (meta.iso) parts.push('ISO ' + meta.iso);
+            if (meta.focal_length) parts.push(meta.focal_length);
+            if (parts.length) {
+                metaHtml = '<br><small style="opacity:0.7">' + parts.join(' &middot; ') + '</small>';
+            }
+            if (meta.gps) {
+                metaHtml += ' <a href="https://maps.google.com/?q=' + meta.gps.lat + ',' + meta.gps.lon + '" target="_blank" rel="noopener" style="color:#8cf;font-size:0.8em"><i class="fas fa-map-marker-alt"></i> Map</a>';
+            }
+        } catch(e) {}
 
         items.push({
             src: src,
             w: width,
             h: height,
-            title: title
+            title: title + metaHtml
         });
     });
 
-    // Initialize PhotoSwipe
-    galleryLinks.forEach((link, index) => {
+    galleryLinks.forEach(function(link, index) {
         link.addEventListener('click', function(e) {
             e.preventDefault();
-
-            const options = {
+            var gallery = new PhotoSwipe(pswpElement, uiElement, items, {
                 index: index,
-                bgOpacity: 0.8,
+                bgOpacity: 0.9,
                 showHideOpacity: true,
-                preload: [1,1] // Preload one image before and after the current
-            };
-
-            const gallery = new PhotoSwipe(pswpElement, uiElement, items, options);
+                preload: [1,1]
+            });
             gallery.init();
         });
     });
 
-    // Handle delete form submission
-    deleteForms.forEach(form => {
+    // Delete handling
+    deleteForms.forEach(function(form) {
         form.addEventListener('submit', function(event) {
             event.preventDefault();
             currentForm = this;
-            const filename = this.dataset.filename;
-            dialogText.textContent = "Are you sure you want to delete '" + filename + "'? This action cannot be undone.";
+            dialogText.textContent = "Delete '" + this.dataset.filename + "'?";
             dialog.showModal();
         });
     });
 
-    // Handle confirm delete
     confirmDeleteButton.addEventListener('click', function() {
-        if (currentForm) {
-            const filename = currentForm.dataset.filename;
-            const url = currentForm.action;
-
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify({})
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    alert(data.message);
-                    // Remove the card from the DOM
-                    const card = currentForm.closest('.card').parentElement;
-                    card.remove();
-                } else {
-                    alert(data.message);
-                }
-                dialog.close();
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while deleting the photo.');
-                dialog.close();
-            });
-        }
+        if (!currentForm) return;
+        fetch(currentForm.action, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                var card = currentForm.closest('.card').parentElement;
+                card.remove();
+            } else {
+                alert(data.message);
+            }
+            dialog.close();
+        })
+        .catch(function() {
+            alert('Error deleting file.');
+            dialog.close();
+        });
     });
 
-    // Ensure loaders are removed for cached images
+    // Handle cached images
     document.querySelectorAll('.thumb-container img').forEach(function(img){
         if (img.complete) {
             img.closest('.thumb-container')?.classList.remove('loading');
-        } else {
-            img.addEventListener('load', function(){
-                img.closest('.thumb-container')?.classList.remove('loading');
-            });
-            img.addEventListener('error', function(){
-                img.closest('.thumb-container')?.classList.remove('loading');
-                img.src = '{{ url_for('static', filename='placeholder.jpg') }}';
-            });
         }
     });
 
-    // Replace poster with playable video on click
+    // Video poster -> player
     document.querySelectorAll('.video-poster').forEach(function(container) {
         container.addEventListener('click', function() {
-            const src = container.getAttribute('data-video-src');
+            var src = container.getAttribute('data-video-src');
             if (!src) return;
-            const video = document.createElement('video');
+            var video = document.createElement('video');
             video.className = 'card-img-top';
             video.controls = true;
             video.preload = 'metadata';
-            const source = document.createElement('source');
+            video.playsInline = true;
+            var source = document.createElement('source');
             source.src = src;
-            // MIME will be inferred by browser; optional to set
             video.appendChild(source);
             container.replaceWith(video);
         });

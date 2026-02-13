@@ -31,15 +31,13 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 60 * 60 * 24 * 30  # 30 days
 
 # Configurable image quality via environment variable
-# Default quality is 100
 IMAGE_QUALITY = int(os.environ.get('IMAGE_QUALITY', '100'))
 
 # Configurable thumbnail quality (percentage)
 THUMBNAIL_QUALITY = int(os.environ.get('THUMBNAIL_QUALITY', '85'))
 
-
-# Set maximum upload size to 5GB (adjust as needed)
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024  # 5 GB
+# Set maximum upload size to 5GB
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024
 
 # Secret key for CSRF protection
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key')
@@ -52,6 +50,109 @@ ALLOWED_EXTENSIONS = {'heic', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'mp4', 'mov', 
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def _list_categories():
+    """Return sorted list of category directory names, excluding hidden dirs."""
+    base = app.config['UPLOAD_FOLDER']
+    return sorted(
+        c for c in os.listdir(base)
+        if os.path.isdir(os.path.join(base, c)) and not c.startswith('.')
+    )
+
+
+def extract_photo_metadata(image):
+    """Extract key EXIF metadata fields from a PIL Image for UI display."""
+    meta = {}
+    try:
+        exif = image.getexif()
+        if not exif:
+            return meta
+
+        # IFD0 tags
+        make = str(exif.get(271, '')).strip()    # Make
+        model = str(exif.get(272, '')).strip()   # Model
+        if model:
+            meta['camera'] = model if (make and make.lower() in model.lower()) else f"{make} {model}".strip()
+
+        dt = exif.get(306)  # DateTime
+        if dt:
+            meta['date'] = str(dt)
+
+        # EXIF Sub-IFD
+        try:
+            exif_ifd = exif.get_ifd(0x8769)
+        except Exception:
+            exif_ifd = {}
+
+        if exif_ifd:
+            dt_orig = exif_ifd.get(36867)  # DateTimeOriginal
+            if dt_orig:
+                meta['date'] = str(dt_orig)
+
+            iso = exif_ifd.get(34855)  # ISOSpeedRatings
+            if iso:
+                try:
+                    meta['iso'] = int(iso)
+                except (TypeError, ValueError):
+                    pass
+
+            fnumber = exif_ifd.get(33437)  # FNumber
+            if fnumber:
+                try:
+                    meta['aperture'] = f"f/{float(fnumber):.1f}"
+                except (TypeError, ValueError):
+                    pass
+
+            exposure = exif_ifd.get(33434)  # ExposureTime
+            if exposure:
+                try:
+                    exp_val = float(exposure)
+                    if 0 < exp_val < 1:
+                        meta['shutter'] = f"1/{int(round(1/exp_val))}"
+                    else:
+                        meta['shutter'] = f"{exp_val:.1f}s"
+                except (TypeError, ValueError, ZeroDivisionError):
+                    pass
+
+            focal = exif_ifd.get(37386)  # FocalLength
+            if focal:
+                try:
+                    meta['focal_length'] = f"{float(focal):.1f}mm"
+                except (TypeError, ValueError):
+                    pass
+
+            lens = exif_ifd.get(42036)  # LensModel
+            if lens:
+                meta['lens'] = str(lens)
+
+        # GPS IFD
+        try:
+            gps_ifd = exif.get_ifd(0x8825)
+        except Exception:
+            gps_ifd = {}
+
+        if gps_ifd:
+            try:
+                lat = gps_ifd.get(2)
+                lat_ref = gps_ifd.get(1)
+                lon = gps_ifd.get(4)
+                lon_ref = gps_ifd.get(3)
+                if lat and lon and lat_ref and lon_ref:
+                    lat_val = float(lat[0]) + float(lat[1]) / 60 + float(lat[2]) / 3600
+                    lon_val = float(lon[0]) + float(lon[1]) / 60 + float(lon[2]) / 3600
+                    if lat_ref == 'S':
+                        lat_val = -lat_val
+                    if lon_ref == 'W':
+                        lon_val = -lon_val
+                    meta['gps'] = {'lat': round(lat_val, 6), 'lon': round(lon_val, 6)}
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    return meta
+
 
 # Where long-running script state (logs, progress) is stored.
 STATE_DIR = os.environ.get('STATE_DIR', os.path.join(app.config['UPLOAD_FOLDER'], '.state'))
@@ -92,23 +193,19 @@ def process_file(filepath, category):
     name, ext = os.path.splitext(filename)
     ext = ext.lower()
 
-    # Define image and video extensions
     image_extensions = {'.heic', '.jpg', '.jpeg', '.png', '.gif', '.bmp'}
     video_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.m4v'}
 
     if ext not in image_extensions and ext not in video_extensions:
-        # Unsupported file type
         logger.warning(f"Unsupported file type: {filename}")
         return
 
     if ext in video_extensions:
         thumb_source_path = filepath
-        # If .m4v, convert to .mp4 first
         if ext == '.m4v':
             source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
-            dest_dir = source_dir
             mp4_filename = f"{name}.mp4"
-            mp4_filepath = os.path.join(dest_dir, mp4_filename)
+            mp4_filepath = os.path.join(source_dir, mp4_filename)
             try:
                 logger.info(f"Converting {filename} to {mp4_filename}")
                 (
@@ -125,7 +222,6 @@ def process_file(filepath, category):
                 logger.error(f"Error converting {filename}: {e.stderr.decode()}")
                 return
 
-        # Generate video poster thumbnail (JPEG)
         try:
             thumb_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'video_thumbnail')
             os.makedirs(thumb_dir, exist_ok=True)
@@ -143,11 +239,12 @@ def process_file(filepath, category):
             logger.error(f"Error generating video thumbnail for {filename}: {getattr(e, 'stderr', b'').decode(errors='ignore')}")
         except Exception as e:
             logger.error(f"Unexpected error generating video thumbnail for {filename}: {str(e)}")
-        # Do not process further as image
         return
 
-    # Handle image files
+    # --- Image processing ---
     try:
+        exif_bytes = b''
+
         if ext == '.heic':
             logger.info(f"Processing HEIC image: {filename}")
             heif_file = pyheif.read(filepath)
@@ -159,81 +256,98 @@ def process_file(filepath, category):
                 heif_file.mode,
                 heif_file.stride,
             )
-            # Convert HEIC to JPEG
             original_format = 'JPEG'
             save_extension = '.jpeg'
+
+            # Extract EXIF from HEIC metadata
+            try:
+                for meta_item in (heif_file.metadata or []):
+                    if meta_item.get('type') == 'Exif':
+                        raw = meta_item['data']
+                        if raw[:4] == b'Exif':
+                            exif_bytes = raw
+                        elif raw[:2] in (b'MM', b'II'):
+                            exif_bytes = b'Exif\x00\x00' + raw
+                        else:
+                            exif_bytes = raw
+                        break
+            except Exception:
+                pass
+            if exif_bytes:
+                image.info['exif'] = exif_bytes
         else:
             logger.info(f"Processing image: {filename}")
             image = Image.open(filepath)
-            original_format = image.format  # Get the original image format
-            save_extension = ext  # Use the original file extension
+            original_format = image.format
+            save_extension = ext
 
-        # Normalize orientation based on EXIF so saved images display correctly
+        # Normalize orientation based on EXIF.
+        # Pillow's exif_transpose also updates image.info['exif'] with orientation removed.
         try:
             image = ImageOps.exif_transpose(image)
-        except Exception as _e:
-            # If anything goes wrong, continue without transposition
+        except Exception:
             pass
 
-        # Handle images with transparency (alpha channel)
+        # Get EXIF bytes after transpose (orientation tag already fixed by Pillow)
+        exif_bytes = image.info.get('exif', b'')
+
+        # Extract metadata for display before any mode conversion
+        photo_meta = extract_photo_metadata(image)
+
+        # Handle transparency
         if image.mode in ('RGBA', 'LA'):
             background = Image.new('RGB', image.size, (255, 255, 255))
-            background.paste(image, mask=image.split()[-1])  # Use alpha channel as mask
-            image = background  # Update the image variable to the new image without alpha
-            original_format = 'JPEG'  # Save as JPEG since transparency is removed
+            background.paste(image, mask=image.split()[-1])
+            image = background
+            original_format = 'JPEG'
             save_extension = '.jpeg'
         elif image.mode != 'RGB':
             image = image.convert('RGB')
 
-        # Define the sizes for different resolutions
         sizes = {
             'largest': (2880, 1620),
             'medium': (1920, 1080),
             'thumbnail': (400, 400),
         }
 
-        # Generate and save images in different resolutions
-        # Also capture dimensions for each saved size to persist
         saved_dimensions = {}
         for size_name, size in sizes.items():
             img_copy = image.copy()
+            save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
+            os.makedirs(save_dir, exist_ok=True)
+
             if size_name == 'largest':
-                # Only resize if the image is larger than the target size
                 if image.width > size[0] or image.height > size[1]:
                     img_copy.thumbnail(size)
-                # Save the image in the appropriate format with maximum quality
-                save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
-                os.makedirs(save_dir, exist_ok=True)
                 save_path = os.path.join(save_dir, f'{name}{save_extension}')
-                # Use progressive/optimized JPEG when applicable for faster progressive rendering
+                save_kwargs = {'optimize': True, 'progressive': True}
+                if exif_bytes:
+                    save_kwargs['exif'] = exif_bytes
                 if (original_format or '').upper() == 'JPEG' or save_path.lower().endswith(('.jpg', '.jpeg')):
-                    img_copy.save(save_path, 'JPEG', quality=100, optimize=True, progressive=True)
+                    img_copy.save(save_path, 'JPEG', quality=100, **save_kwargs)
                 else:
                     img_copy.save(save_path, original_format)
                 logger.info(f"Saved largest image: {save_path}")
-                saved_dimensions[size_name] = {'width': img_copy.width, 'height': img_copy.height}
+
             elif size_name == 'medium':
-                # Resize to the target size
                 img_copy.thumbnail(size)
-                # Save as JPEG with default image quality
-                save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
-                os.makedirs(save_dir, exist_ok=True)
                 save_path = os.path.join(save_dir, f'{name}.jpeg')
-                img_copy.save(save_path, 'JPEG', quality=IMAGE_QUALITY, optimize=True, progressive=True)
+                save_kwargs = {'optimize': True, 'progressive': True}
+                if exif_bytes:
+                    save_kwargs['exif'] = exif_bytes
+                img_copy.save(save_path, 'JPEG', quality=IMAGE_QUALITY, **save_kwargs)
                 logger.info(f"Saved medium image: {save_path}")
-                saved_dimensions[size_name] = {'width': img_copy.width, 'height': img_copy.height}
+
             elif size_name == 'thumbnail':
-                # Resize to the target size
                 img_copy.thumbnail(size)
-                # Save as JPEG with reduced quality
-                save_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size_name)
-                os.makedirs(save_dir, exist_ok=True)
                 save_path = os.path.join(save_dir, f'{name}.jpeg')
+                # Thumbnails: no EXIF to keep file size small
                 img_copy.save(save_path, 'JPEG', quality=THUMBNAIL_QUALITY, optimize=True, progressive=True)
                 logger.info(f"Saved thumbnail image: {save_path}")
-                saved_dimensions[size_name] = {'width': img_copy.width, 'height': img_copy.height}
 
-        # Persist dimensions for this image so PhotoSwipe can use correct aspect ratio
+            saved_dimensions[size_name] = {'width': img_copy.width, 'height': img_copy.height}
+
+        # Persist dimensions and metadata
         try:
             dimensions_path = os.path.join(app.config['UPLOAD_FOLDER'], category, 'dimensions.json')
             os.makedirs(os.path.dirname(dimensions_path), exist_ok=True)
@@ -242,10 +356,11 @@ def process_file(filepath, category):
                     dims_data = json.load(f)
             else:
                 dims_data = {}
+            saved_dimensions['meta'] = photo_meta
             dims_data[name] = saved_dimensions
             with open(dimensions_path, 'w') as f:
                 json.dump(dims_data, f)
-            logger.info(f"Updated dimensions metadata: {dimensions_path}")
+            logger.info(f"Updated dimensions + metadata: {dimensions_path}")
         except Exception as e:
             logger.warning(f"Could not write dimensions metadata for {filename}: {e}")
 
@@ -266,7 +381,7 @@ def build_tree_data(categories):
         for name, subtree in sorted(current_dict.items()):
             full_path = f"{parent_path}-{name}" if parent_path else name
             node = {
-                'text': name,  # Removed the delete icon
+                'text': name,
                 'href': url_for('category_view', category=full_path),
                 'selectable': True
             }
@@ -282,15 +397,9 @@ class CategoryForm(FlaskForm):
 
 @app.route('/')
 def index():
-    categories = os.listdir(app.config['UPLOAD_FOLDER'])
+    categories = _list_categories()
     form = CategoryForm()
-    
-    # Filter only directories
-    categories = [c for c in categories if os.path.isdir(os.path.join(app.config['UPLOAD_FOLDER'], c))]
-    
-    # Build tree data based on category names with "-" as hierarchy
     treeData = build_tree_data(categories)
-    
     return render_template('index.html', categories=categories, form=form, treeData=treeData)
 
 @app.route('/admin')
@@ -304,10 +413,10 @@ def admin_dashboard():
             'params': meta.get('params', {}),
         })
     jobs = script_manager.list_jobs()
-    # Compute processed counts for display
     for job in jobs:
         job['processed_count'] = script_manager.progress.count(job.get('progress_key', job['script']))
-    return render_template('admin.html', scripts=scripts_payload, jobs=jobs)
+    categories = _list_categories()
+    return render_template('admin.html', scripts=scripts_payload, jobs=jobs, categories=categories)
 
 @app.route('/admin/scripts/run', methods=['POST'])
 def start_script():
@@ -355,7 +464,6 @@ def stop_job(job_id):
 
 @app.route('/category/<category>')
 def category_view(category):
-    # Define directories
     largest_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'largest')
     source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
     dimensions_path = os.path.join(app.config['UPLOAD_FOLDER'], category, 'dimensions.json')
@@ -365,21 +473,18 @@ def category_view(category):
     image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'}
     video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
 
-    # Load dimensions
     if os.path.exists(dimensions_path):
         with open(dimensions_path, 'r') as f:
             all_dimensions = json.load(f)
     else:
         all_dimensions = {}
 
-    # Fetch images from 'largest' directory
     if os.path.exists(largest_dir):
         image_files = os.listdir(largest_dir)
         for file in image_files:
             name, ext = os.path.splitext(file)
             ext = ext.lower()
             if ext in image_extensions:
-                # Prefer persisted dimensions; if missing, inspect the actual file
                 width = all_dimensions.get(name, {}).get('largest', {}).get('width')
                 height = all_dimensions.get(name, {}).get('largest', {}).get('height')
                 if width is None or height is None:
@@ -388,25 +493,25 @@ def category_view(category):
                         with Image.open(img_path) as im:
                             width, height = im.size
                     except Exception:
-                        # Fallback to a sane default if inspection fails
                         width, height = 1024, 768
+
+                photo_meta = all_dimensions.get(name, {}).get('meta', {})
 
                 images.append({
                     'name': name,
                     'ext': ext,
                     'filename': file,
                     'width': width,
-                    'height': height
+                    'height': height,
+                    'meta': photo_meta,
                 })
 
-    # Fetch videos from 'source' directory
     if os.path.exists(source_dir):
         video_files = os.listdir(source_dir)
         for file in video_files:
             name, ext = os.path.splitext(file)
             ext = ext.lower()
             if ext in video_extensions:
-                # Determine poster path (generated on upload)
                 poster_rel = os.path.join(category, 'video_thumbnail', f'{name}.jpeg')
                 poster_abs = os.path.join(app.config['UPLOAD_FOLDER'], poster_rel)
                 if os.path.exists(poster_abs):
@@ -419,7 +524,6 @@ def category_view(category):
                     'ext': ext,
                     'filename': file,
                     'poster': poster_url,
-                    # Videos do not need width and height for PhotoSwipe
                 })
 
     return render_template('category.html', category=category, images=images, videos=videos)
@@ -431,7 +535,6 @@ def create_category():
         category = secure_filename(form.category_name.data)
         category_path = os.path.join(app.config['UPLOAD_FOLDER'], category)
         os.makedirs(category_path, exist_ok=True)
-        # Create subdirectories
         for sub_dir in ['source', 'largest', 'medium', 'thumbnail']:
             os.makedirs(os.path.join(category_path, sub_dir), exist_ok=True)
     return redirect(url_for('index'))
@@ -442,16 +545,14 @@ def delete_category(category):
     if os.path.exists(category_path):
         try:
             shutil.rmtree(category_path)
-            # If the request is AJAX, return JSON
             if request.is_json:
-                return jsonify({'status': 'success', 'message': f"Category '{category}' has been deleted successfully."}), 200
+                return jsonify({'status': 'success', 'message': f"Category '{category}' deleted."}), 200
             else:
                 return redirect(url_for('index'))
         except Exception as e:
             if request.is_json:
                 return jsonify({'status': 'fail', 'message': f"Error deleting category: {str(e)}"}), 500
             else:
-                # Handle non-AJAX deletion if necessary
                 return redirect(url_for('index'))
     else:
         if request.is_json:
@@ -462,7 +563,6 @@ def delete_category(category):
 @app.route('/upload/<category>', methods=['GET', 'POST'])
 def upload_file(category):
     if request.method == 'POST':
-        # Check if the post request has the file part
         if 'photos[]' not in request.files:
             return jsonify({'status': 'fail', 'message': 'No file part'}), 400
         files = request.files.getlist('photos[]')
@@ -470,19 +570,11 @@ def upload_file(category):
             return jsonify({'status': 'fail', 'message': 'No selected files'}), 400
         for file in files:
             if file and allowed_file(file.filename):
-                # Use secure filename
                 filename = secure_filename(file.filename)
-                # Determine destination directory based on file type
-                ext = os.path.splitext(filename)[1].lower()
-                if ext in {'.mp4', '.mov', '.avi', '.mkv'}:
-                    dest_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
-                else:
-                    dest_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
+                dest_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
                 os.makedirs(dest_dir, exist_ok=True)
                 filepath = os.path.join(dest_dir, filename)
                 file.save(filepath)
-
-                # Process the file
                 process_file(filepath, category)
         return jsonify({'status': 'success', 'message': 'Files uploaded successfully.'}), 200
     form = CategoryForm()
@@ -494,20 +586,15 @@ def uploaded_file(filename):
 
 @app.route('/download_category/<category>')
 def download_category(category):
-    # Get the size parameter from the query string
     size = request.args.get('size', 'largest')
-
-    # Validate the size parameter
     valid_sizes = ['source', 'largest', 'medium']
     if size not in valid_sizes:
         return jsonify({'status': 'fail', 'message': 'Invalid size parameter.'}), 400
 
-    # Path to the directory containing the images of the specified size
     images_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size)
     if not os.path.exists(images_dir):
         return jsonify({'status': 'fail', 'message': 'Size not found.'}), 404
 
-    # Collect all image file paths excluding videos
     video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
     image_filenames = [f for f in os.listdir(images_dir) if os.path.splitext(f)[1].lower() not in video_extensions]
     image_paths = [os.path.join(images_dir, filename) for filename in image_filenames]
@@ -515,58 +602,35 @@ def download_category(category):
     if not image_filenames:
         return jsonify({'status': 'fail', 'message': 'No files to download.'}), 404
 
-    # Create a ZIP file in memory
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         for file_path, filename in zip(image_paths, image_filenames):
             zip_file.write(file_path, arcname=filename)
-
-    # Set the pointer to the beginning of the stream
     zip_buffer.seek(0)
-
-    # Send the ZIP file as a response
-    return send_file(
-        zip_buffer,
-        mimetype='application/zip',
-        as_attachment=True,
-        download_name=f'{category}_{size}_files.zip'
-    )
+    return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'{category}_{size}_files.zip')
 
 @app.route('/download_videos/<category>')
 def download_videos(category):
     video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
-    # Path to the 'source' directory for videos
     source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
     if not os.path.exists(source_dir):
         return jsonify({'status': 'fail', 'message': 'Category not found.'}), 404
 
-    # Filter video files
     video_filenames = [f for f in os.listdir(source_dir) if os.path.splitext(f)[1].lower() in video_extensions]
     video_paths = [os.path.join(source_dir, f) for f in video_filenames]
 
     if not video_filenames:
         return jsonify({'status': 'fail', 'message': 'No videos to download.'}), 404
 
-    # Create a ZIP file in memory
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
         for file_path, filename in zip(video_paths, video_filenames):
             zip_file.write(file_path, arcname=filename)
-
-    # Set the pointer to the beginning of the stream
     zip_buffer.seek(0)
-
-    # Send the ZIP file as a response
-    return send_file(
-        zip_buffer,
-        mimetype='application/zip',
-        as_attachment=True,
-        download_name=f'{category}_videos.zip'
-    )
+    return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'{category}_videos.zip')
 
 @app.route('/delete_photo/<category>/<filename>', methods=['POST'])
 def delete_photo(category, filename):
-    # Define all sizes to delete
     sizes = ['source', 'largest', 'medium', 'thumbnail']
     success = True
     messages = []
@@ -580,7 +644,6 @@ def delete_photo(category, filename):
                 success = False
                 messages.append(f'Error deleting {size} version: {str(e)}')
 
-    # If deleting a video, also remove its generated poster
     name, ext = os.path.splitext(filename)
     video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
     if ext.lower() in video_extensions:
@@ -592,31 +655,36 @@ def delete_photo(category, filename):
                 success = False
                 messages.append(f'Error deleting video thumbnail: {str(e)}')
 
+    # Also clean up dimensions.json entry
+    try:
+        dimensions_path = os.path.join(app.config['UPLOAD_FOLDER'], category, 'dimensions.json')
+        if os.path.exists(dimensions_path):
+            with open(dimensions_path, 'r') as f:
+                dims_data = json.load(f)
+            if name in dims_data:
+                del dims_data[name]
+                with open(dimensions_path, 'w') as f:
+                    json.dump(dims_data, f)
+    except Exception:
+        pass
+
     if success:
-        return jsonify({'status': 'success', 'message': f"'{filename}' has been deleted successfully."}), 200
+        return jsonify({'status': 'success', 'message': f"'{filename}' deleted."}), 200
     else:
         return jsonify({'status': 'fail', 'message': ' '.join(messages)}), 500
 
 @app.route('/download_single/<category>/<size>/<filename>')
 def download_single(category, size, filename):
-    # If the original file was m4v and converted to mp4, adjust the filename
     name, ext = os.path.splitext(filename)
     if ext.lower() == '.m4v' and size == 'source':
         filename = f"{name}.mp4"
-    # Validate size
     valid_sizes = ['source', 'largest', 'medium']
     if size not in valid_sizes:
         abort(404)
-
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], category, size, filename)
     if not os.path.exists(file_path):
         abort(404)
-
-    return send_file(
-        file_path,
-        as_attachment=True,
-        download_name=filename
-    )
+    return send_file(file_path, as_attachment=True, download_name=filename)
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_size_error(e):

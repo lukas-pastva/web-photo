@@ -1,67 +1,85 @@
-<!-- templates/base.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="auto">
 <head>
     <meta charset="UTF-8">
     <title>Photo Organizer</title>
-    <!-- Include Bootstrap CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <!-- Bootstrap 4 CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
-    
-    <!-- Include Bootstrap Treeview CSS -->
+    <!-- Bootstrap Treeview CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-treeview/1.2.0/bootstrap-treeview.min.css" />
-    
-    <!-- Include PhotoSwipe CSS -->
+    <!-- PhotoSwipe CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/photoswipe.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/default-skin/default-skin.min.css" />
-    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-md">
+        <a class="navbar-brand" href="{{ url_for('index') }}">
+            <i class="fas fa-home"></i> Photos
+        </a>
+        <div class="navbar-right-group ml-auto d-flex align-items-center">
+            <button class="btn btn-sm theme-toggle" id="theme-toggle" title="Toggle theme">
+                <i class="fas fa-sun" id="theme-icon"></i>
+            </button>
+            <a class="btn btn-sm btn-outline-secondary ml-2" href="{{ url_for('admin_dashboard') }}">
+                <i class="fas fa-cog"></i><span class="d-none d-sm-inline ml-1">Admin</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-2 px-sm-3 mt-2">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- jQuery + Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
+    <!-- Bootstrap Treeview -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-treeview/1.2.0/bootstrap-treeview.min.js"></script>
     <!-- PhotoSwipe JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/photoswipe.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/photoswipe-ui-default.min.js"></script>
 
-    <!-- Include Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
-    
-    <!-- Include your custom styles.css -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-    
-    <!-- Meta viewport tag for responsive scaling -->
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-</head>
-<body>
-    <!-- Navigation bar -->
-    <nav class="navbar navbar-expand-md navbar-light bg-light">
-        <!-- Using Bootstrap classes to style HOME as a large button -->
-        <a class="navbar-brand btn btn-primary btn-lg" href="{{ url_for('index') }}">HOME</a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" 
-                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <!-- Collapsible menu (if needed) -->
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ml-auto">
-                <li class="nav-item">
-                    <a class="nav-link btn btn-outline-secondary" href="{{ url_for('admin_dashboard') }}">Admin</a>
-                </li>
-            </ul>
-        </div>
-    </nav>
-    <!-- Main content -->
-    <div class="container mt-4">
-        {% block content %}{% endblock %}
-    </div>
+    <script>
+    (function() {
+        const STORAGE_KEY = 'theme-preference';
+        const toggle = document.getElementById('theme-toggle');
+        const icon = document.getElementById('theme-icon');
+        const html = document.documentElement;
+        const modes = ['auto', 'light', 'dark'];
+        let current = localStorage.getItem(STORAGE_KEY) || 'auto';
 
-    <!-- Include jQuery first -->
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    
-    <!-- Popper.js and Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
-    
-    <!-- Include Bootstrap Treeview JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-treeview/1.2.0/bootstrap-treeview.min.js"></script>
-    
-    <!-- Include PhotoSwipe JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/photoswipe.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.3/photoswipe-ui-default.min.js"></script>
+        function applyTheme(mode) {
+            html.setAttribute('data-theme', mode);
+            if (mode === 'auto') {
+                icon.className = 'fas fa-adjust';
+                toggle.title = 'Theme: Auto';
+            } else if (mode === 'light') {
+                icon.className = 'fas fa-sun';
+                toggle.title = 'Theme: Light';
+            } else {
+                icon.className = 'fas fa-moon';
+                toggle.title = 'Theme: Dark';
+            }
+            localStorage.setItem(STORAGE_KEY, mode);
+            current = mode;
+        }
+
+        toggle.addEventListener('click', function() {
+            const idx = (modes.indexOf(current) + 1) % modes.length;
+            applyTheme(modes[idx]);
+        });
+
+        applyTheme(current);
+    })();
+    </script>
 </body>
 </html>

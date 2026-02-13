@@ -1,139 +1,145 @@
-<!-- templates/upload.html -->
 {% extends 'base.html' %}
 {% block content %}
-<h1>Upload to Category: {{ category }}</h1>
-<form id="uploadForm" action="{{ url_for('upload_file', category=category) }}" method="post" enctype="multipart/form-data">
-    {{ form.hidden_tag() }}
-    <div class="form-group">
-        <label for="photos">Select Photos and Videos</label>
-        <input type="file" name="photos[]" class="form-control-file" id="photos" accept="image/*,video/mp4,video/quicktime,video/x-msvideo,video/x-matroska" multiple required>
+<div class="upload-page">
+    <h5 class="mb-3">Upload to: <strong>{{ category }}</strong></h5>
+
+    <form id="uploadForm" action="{{ url_for('upload_file', category=category) }}" method="post" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+        <div class="upload-drop-zone" id="dropZone">
+            <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i>
+            <p class="mb-1">Tap to select or drop files</p>
+            <small class="text-muted">Photos, videos, HEIC supported</small>
+            <input type="file" name="photos[]" class="upload-file-input" id="photos"
+                   accept="image/*,.heic,.heif,video/mp4,video/quicktime,video/x-msvideo,video/x-matroska"
+                   multiple required>
+        </div>
+        <div id="file-count" class="text-muted small mt-1 mb-2"></div>
+        <button type="submit" class="btn btn-success btn-block btn-lg upload-submit-btn">
+            <i class="fas fa-upload"></i> Upload
+        </button>
+    </form>
+
+    <!-- Progress -->
+    <div class="progress mt-3" style="height: 28px; display: none;" id="uploadProgressContainer">
+        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+             style="width: 0%;" id="uploadProgressBar">0%</div>
     </div>
-    <button type="submit" class="btn btn-success btn-block">Upload</button>
-</form>
 
-<!-- Progress Bar Container -->
-<div class="progress mt-4" style="height: 25px; display: none;" id="uploadProgressContainer">
-    <div class="progress-bar" role="progressbar" style="width: 0%;" id="uploadProgressBar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+    <div class="spinner-border text-primary mt-3" role="status" id="uploadSpinner" style="display: none;">
+        <span class="sr-only">Uploading...</span>
+    </div>
+
+    <div class="mt-2" id="uploadStatus"></div>
+
+    <a href="{{ url_for('category_view', category=category) }}" class="btn btn-outline-secondary btn-block mt-3">
+        <i class="fas fa-arrow-left"></i> Back to Category
+    </a>
 </div>
 
-<!-- Loading Spinner (hidden by default) -->
-<div class="spinner-border text-primary mt-4" role="status" id="uploadSpinner" style="display: none;">
-    <span class="sr-only">Uploading...</span>
-</div>
-
-<!-- Upload Status Message -->
-<div class="mt-3" id="uploadStatus"></div>
-
-<a href="{{ url_for('category_view', category=category) }}" class="btn btn-secondary btn-block mt-3">Back to Category</a>
-
-<!-- JavaScript to Handle AJAX Upload, Progress Bar, and Wake Lock -->
 <script>
 let wakeLock = null;
 
-// Function to request Wake Lock
 async function requestWakeLock() {
     try {
         wakeLock = await navigator.wakeLock.request('screen');
-        console.log('Wake Lock active');
-        wakeLock.addEventListener('release', () => {
-            console.log('Wake Lock released');
-        });
-    } catch (err) {
-        console.error(`${err.name}, ${err.message}`);
-    }
+        wakeLock.addEventListener('release', function() {});
+    } catch (err) {}
 }
 
-// Function to release Wake Lock
 async function releaseWakeLock() {
     if (wakeLock !== null) {
         await wakeLock.release();
         wakeLock = null;
-        console.log('Wake Lock released manually');
     }
 }
 
-document.getElementById('uploadForm').addEventListener('submit', function(event) {
-    event.preventDefault(); // Prevent default form submission
+// Show file count on selection
+document.getElementById('photos').addEventListener('change', function() {
+    var count = this.files.length;
+    document.getElementById('file-count').textContent = count ? count + ' file(s) selected' : '';
+});
 
-    const filesInput = document.getElementById('photos');
-    const files = filesInput.files;
+// Drag and drop visual feedback
+var dropZone = document.getElementById('dropZone');
+['dragenter', 'dragover'].forEach(function(evt) {
+    dropZone.addEventListener(evt, function(e) {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
+    });
+});
+['dragleave', 'drop'].forEach(function(evt) {
+    dropZone.addEventListener(evt, function(e) {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+    });
+});
+
+document.getElementById('uploadForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+    var filesInput = document.getElementById('photos');
+    var files = filesInput.files;
     if (files.length === 0) {
-        alert('Please select at least one file to upload.');
+        alert('Please select at least one file.');
         return;
     }
 
-    const formData = new FormData();
-    for (let i = 0; i < files.length; i++) {
+    var formData = new FormData();
+    for (var i = 0; i < files.length; i++) {
         formData.append('photos[]', files[i]);
     }
 
-    const xhr = new XMLHttpRequest();
-
+    var xhr = new XMLHttpRequest();
     xhr.open('POST', this.action, true);
 
-    // Show the progress bar and spinner
-    const progressContainer = document.getElementById('uploadProgressContainer');
-    const progressBar = document.getElementById('uploadProgressBar');
-    const spinner = document.getElementById('uploadSpinner');
-    const uploadStatus = document.getElementById('uploadStatus');
-    progressContainer.style.display = 'block';
-    spinner.style.display = 'block'; // Show spinner
+    var progressContainer = document.getElementById('uploadProgressContainer');
+    var progressBar = document.getElementById('uploadProgressBar');
+    var spinner = document.getElementById('uploadSpinner');
+    var uploadStatus = document.getElementById('uploadStatus');
+    progressContainer.style.display = 'flex';
+    spinner.style.display = 'block';
     progressBar.style.width = '0%';
-    progressBar.setAttribute('aria-valuenow', 0);
     progressBar.textContent = '0%';
     uploadStatus.innerHTML = '';
 
-    // Request Wake Lock
-    if ('wakeLock' in navigator) {
-        requestWakeLock();
-    }
+    if ('wakeLock' in navigator) { requestWakeLock(); }
 
-    // Update progress bar
     xhr.upload.addEventListener('progress', function(e) {
         if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 100);
-            progressBar.style.width = percentComplete + '%';
-            progressBar.setAttribute('aria-valuenow', percentComplete);
-            progressBar.textContent = percentComplete + '%';
+            var pct = Math.round((e.loaded / e.total) * 100);
+            progressBar.style.width = pct + '%';
+            progressBar.textContent = pct + '%';
         }
     });
 
-    // Handle successful upload
     xhr.addEventListener('load', async function() {
         if (xhr.status === 200) {
-            const response = JSON.parse(xhr.responseText);
-            if (response.status === 'success') {
-                uploadStatus.innerHTML = '<div class="alert alert-success">' + response.message + '</div>';
-                // Optionally, reset the form
-                document.getElementById('uploadForm').reset();
-            } else {
-                uploadStatus.innerHTML = '<div class="alert alert-danger">' + response.message + '</div>';
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                if (resp.status === 'success') {
+                    uploadStatus.innerHTML = '<div class="alert alert-success">' + resp.message + '</div>';
+                    document.getElementById('uploadForm').reset();
+                    document.getElementById('file-count').textContent = '';
+                } else {
+                    uploadStatus.innerHTML = '<div class="alert alert-danger">' + resp.message + '</div>';
+                }
+            } catch(e) {
+                uploadStatus.innerHTML = '<div class="alert alert-danger">Upload completed but response error.</div>';
             }
         } else {
-            uploadStatus.innerHTML = '<div class="alert alert-danger">Upload failed. Please try again.</div>';
+            uploadStatus.innerHTML = '<div class="alert alert-danger">Upload failed (status ' + xhr.status + ').</div>';
         }
-        // Hide the progress bar and spinner after completion
         progressContainer.style.display = 'none';
         spinner.style.display = 'none';
-        // Release Wake Lock
-        if ('wakeLock' in navigator) {
-            await releaseWakeLock();
-        }
+        if ('wakeLock' in navigator) { await releaseWakeLock(); }
     });
 
-    // Handle errors
     xhr.addEventListener('error', async function() {
-        uploadStatus.innerHTML = '<div class="alert alert-danger">An error occurred during the upload.</div>';
-        // Hide the progress bar and spinner
+        uploadStatus.innerHTML = '<div class="alert alert-danger">Network error during upload.</div>';
         progressContainer.style.display = 'none';
         spinner.style.display = 'none';
-        // Release Wake Lock
-        if ('wakeLock' in navigator) {
-            await releaseWakeLock();
-        }
+        if ('wakeLock' in navigator) { await releaseWakeLock(); }
     });
 
-    // Send the form data
     xhr.send(formData);
 });
 </script>

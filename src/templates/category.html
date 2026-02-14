@@ -24,19 +24,25 @@
     </a>
 </div>
 
-<!-- Media Tabs -->
-<ul class="nav nav-tabs nav-tabs-compact" id="mediaTabs" role="tablist">
-  <li class="nav-item">
-    <a class="nav-link active" id="images-tab" data-toggle="tab" href="#images-pane" role="tab">
-      Images{% if images %} <span class="badge badge-light">{{ images|length }}</span>{% endif %}
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link" id="videos-tab" data-toggle="tab" href="#videos-pane" role="tab">
-      Videos{% if videos %} <span class="badge badge-light">{{ videos|length }}</span>{% endif %}
-    </a>
-  </li>
-</ul>
+<!-- Media Tabs + Zoom -->
+<div class="d-flex align-items-center justify-content-between mb-0">
+  <ul class="nav nav-tabs nav-tabs-compact mb-0" id="mediaTabs" role="tablist">
+    <li class="nav-item">
+      <a class="nav-link active" id="images-tab" data-toggle="tab" href="#images-pane" role="tab">
+        Images{% if images %} <span class="badge badge-light">{{ images|length }}</span>{% endif %}
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" id="videos-tab" data-toggle="tab" href="#videos-pane" role="tab">
+        Videos{% if videos %} <span class="badge badge-light">{{ videos|length }}</span>{% endif %}
+      </a>
+    </li>
+  </ul>
+  <div class="zoom-controls">
+    <button id="zoom-out" class="btn btn-outline-secondary btn-sm" title="Smaller"><i class="fas fa-minus"></i></button>
+    <button id="zoom-in" class="btn btn-outline-secondary btn-sm" title="Bigger"><i class="fas fa-plus"></i></button>
+  </div>
+</div>
 
 <div class="tab-content mt-2">
   <!-- Images Pane -->
@@ -156,6 +162,32 @@
 </dialog>
 
 <script>
+/* ===== Zoom controls ===== */
+(function() {
+    var STORAGE_KEY = 'gallery-zoom';
+    var MIN_ZOOM = 1;
+    var MAX_ZOOM = 4;
+    var DEFAULT_ZOOM = 3;
+    var zoom = parseInt(localStorage.getItem(STORAGE_KEY)) || DEFAULT_ZOOM;
+    if (zoom < MIN_ZOOM || zoom > MAX_ZOOM) zoom = DEFAULT_ZOOM;
+
+    function applyZoom(level) {
+        zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, level));
+        localStorage.setItem(STORAGE_KEY, zoom);
+        document.querySelectorAll('.gallery-grid').forEach(function(grid) {
+            grid.setAttribute('data-zoom', zoom);
+        });
+        document.getElementById('zoom-out').disabled = zoom >= MAX_ZOOM;
+        document.getElementById('zoom-in').disabled = zoom <= MIN_ZOOM;
+    }
+
+    /* Apply saved zoom immediately */
+    applyZoom(zoom);
+
+    document.getElementById('zoom-in').addEventListener('click', function() { applyZoom(zoom - 1); });
+    document.getElementById('zoom-out').addEventListener('click', function() { applyZoom(zoom + 1); });
+})();
+
 document.addEventListener('DOMContentLoaded', function() {
     const deleteForms = document.querySelectorAll('.delete-form');
     const dialog = document.getElementById('delete-confirmation-dialog');

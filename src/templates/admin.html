@@ -38,12 +38,11 @@
                 {% if categories %}
                 <div class="category-admin-list">
                     {% for cat in categories %}
-                    {% set counts = cat_counts.get(cat, {'photos': 0, 'videos': 0}) %}
                     <div class="category-admin-item d-flex justify-content-between align-items-center" data-category="{{ cat }}">
                         <a href="{{ url_for('category_view', category=cat) }}" class="category-admin-link">{{ cat }}</a>
                         <div class="d-flex align-items-center category-admin-actions">
-                            <span class="badge badge-light mr-1" title="Photos"><i class="fas fa-image"></i> {{ counts.photos }}</span>
-                            <span class="badge badge-light mr-2" title="Videos"><i class="fas fa-video"></i> {{ counts.videos }}</span>
+                            <span class="badge badge-light mr-1 cat-badge" data-cat="{{ cat }}" data-type="photos" title="Photos"><i class="fas fa-image"></i> <span class="cnt"><i class="fas fa-spinner fa-spin" style="font-size:0.55rem"></i></span></span>
+                            <span class="badge badge-light mr-2 cat-badge" data-cat="{{ cat }}" data-type="videos" title="Videos"><i class="fas fa-video"></i> <span class="cnt"><i class="fas fa-spinner fa-spin" style="font-size:0.55rem"></i></span></span>
                             <button class="btn btn-outline-danger btn-sm delete-category-btn" data-category="{{ cat }}" title="Delete">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
@@ -54,6 +53,35 @@
                 {% else %}
                 <p class="text-muted small mb-0">No categories yet.</p>
                 {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Duplicates -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="card-title mb-0">Duplicates</h6>
+                    <button id="scan-dup-btn" class="btn btn-primary btn-sm">
+                        <i class="fas fa-search"></i> Scan
+                    </button>
+                </div>
+                <p class="text-muted small mb-2">Find files with the same name and size across categories.</p>
+                <div id="dup-status" class="small text-muted mb-2"></div>
+                <div id="dup-review" style="display:none">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span id="dup-counter" class="small font-weight-bold"></span>
+                        <div>
+                            <button id="dup-prev" class="btn btn-outline-secondary btn-sm" disabled><i class="fas fa-chevron-left"></i></button>
+                            <button id="dup-next" class="btn btn-outline-secondary btn-sm"><i class="fas fa-chevron-right"></i> Next</button>
+                        </div>
+                    </div>
+                    <div id="dup-file-info" class="small mb-2 font-weight-bold"></div>
+                    <div id="dup-locations" class="row"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -132,16 +160,41 @@ const routes = {
     list: "{{ url_for('list_jobs_api') }}",
     log: "{{ url_for('job_log', job_id='JOB_ID') }}",
     stop: "{{ url_for('stop_job', job_id='JOB_ID') }}",
+    categoryCounts: "{{ url_for('category_counts_api') }}",
+    dupScan: "{{ url_for('scan_duplicates') }}",
+    dupDelete: "{{ url_for('delete_duplicate') }}",
 };
 const deleteCategoryRouteTemplate = "{{ url_for('delete_category', category='CATEGORY_PLACEHOLDER') }}";
-const catCounts = {{ cat_counts|tojson }};
 
 let activeJobId = null;
 let logOffset = 0;
 let logTimer = null;
 const LOG_POLL_MS = 1200;
 
-/* Category creation preview */
+/* ===== Category counts (async) ===== */
+let catCounts = {};
+(function() {
+    fetch(routes.categoryCounts)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            catCounts = data;
+            document.querySelectorAll('.cat-badge').forEach(function(el) {
+                var cat = el.dataset.cat;
+                var type = el.dataset.type;
+                var cnt = el.querySelector('.cnt');
+                if (cnt && data[cat]) {
+                    cnt.textContent = data[cat][type] || 0;
+                } else if (cnt) {
+                    cnt.textContent = '0';
+                }
+            });
+        })
+        .catch(function() {
+            document.querySelectorAll('.cnt').forEach(function(el) { el.textContent = '?'; });
+        });
+})();
+
+/* ===== Category creation preview ===== */
 (function() {
     var parentSelect = document.getElementById('parent-category');
     var nameInput = document.getElementById('category_name');
@@ -160,7 +213,7 @@ const LOG_POLL_MS = 1200;
     nameInput.addEventListener('input', updatePreview);
 })();
 
-/* Category delete handling */
+/* ===== Category delete handling ===== */
 (function() {
     const dialog = document.getElementById('delete-category-dialog');
     const dialogText = document.getElementById('delete-category-text');
@@ -208,7 +261,158 @@ const LOG_POLL_MS = 1200;
     });
 })();
 
-/* Script management */
+/* ===== Duplicates ===== */
+(function() {
+    var scanBtn = document.getElementById('scan-dup-btn');
+    var statusEl = document.getElementById('dup-status');
+    var reviewEl = document.getElementById('dup-review');
+    var counterEl = document.getElementById('dup-counter');
+    var fileInfoEl = document.getElementById('dup-file-info');
+    var locationsEl = document.getElementById('dup-locations');
+    var prevBtn = document.getElementById('dup-prev');
+    var nextBtn = document.getElementById('dup-next');
+    var groups = [];
+    var currentIdx = 0;
+    var deletedTotal = 0;
+
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function renderGroup(idx) {
+        if (idx < 0 || idx >= groups.length) {
+            statusEl.textContent = 'All duplicates reviewed. Deleted ' + deletedTotal + ' file(s).';
+            reviewEl.style.display = 'none';
+            return;
+        }
+        currentIdx = idx;
+        var g = groups[idx];
+        /* skip already-resolved groups (<=1 location left) */
+        if (g.locations.length <= 1) {
+            if (idx < groups.length - 1) { renderGroup(idx + 1); return; }
+            statusEl.textContent = 'All duplicates reviewed. Deleted ' + deletedTotal + ' file(s).';
+            reviewEl.style.display = 'none';
+            return;
+        }
+        counterEl.textContent = (idx + 1) + ' of ' + groups.length;
+        fileInfoEl.textContent = g.filename + '  (' + formatSize(g.size) + ')';
+        prevBtn.disabled = idx === 0;
+        nextBtn.disabled = idx === groups.length - 1;
+
+        locationsEl.innerHTML = '';
+        g.locations.forEach(function(loc) {
+            var col = document.createElement('div');
+            col.className = 'col-6 col-md-3 mb-2';
+            var card = document.createElement('div');
+            card.className = 'card dup-loc-card';
+
+            if (loc.thumbnail) {
+                var img = document.createElement('img');
+                img.className = 'card-img-top dup-thumb';
+                img.src = loc.thumbnail;
+                img.alt = g.filename;
+                img.onerror = function() { this.outerHTML = '<div class="dup-thumb-placeholder"><i class="fas fa-file fa-2x"></i></div>'; };
+                card.appendChild(img);
+            } else {
+                var ph = document.createElement('div');
+                ph.className = 'dup-thumb-placeholder';
+                ph.innerHTML = '<i class="fas fa-file fa-2x"></i>';
+                card.appendChild(ph);
+            }
+
+            var body = document.createElement('div');
+            body.className = 'card-body p-2 text-center';
+            var catName = document.createElement('div');
+            catName.className = 'small font-weight-bold text-truncate';
+            catName.textContent = loc.category;
+            catName.title = loc.category;
+
+            var delBtn = document.createElement('button');
+            delBtn.className = 'btn btn-outline-danger btn-sm mt-1 dup-del-btn';
+            delBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+            delBtn.addEventListener('click', (function(locRef, colRef, btnRef) {
+                return function() {
+                    btnRef.disabled = true;
+                    btnRef.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    fetch(routes.dupDelete, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({category: locRef.category, filename: g.filename})
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.status === 'success') {
+                            colRef.remove();
+                            deletedTotal++;
+                            g.locations = g.locations.filter(function(l) { return l.category !== locRef.category; });
+                            statusEl.textContent = 'Deleted ' + deletedTotal + ' file(s) so far.';
+                            if (g.locations.length <= 1) {
+                                /* resolved, auto-advance after brief pause */
+                                setTimeout(function() {
+                                    if (currentIdx < groups.length - 1) {
+                                        renderGroup(currentIdx + 1);
+                                    } else {
+                                        statusEl.textContent = 'All duplicates reviewed. Deleted ' + deletedTotal + ' file(s).';
+                                        reviewEl.style.display = 'none';
+                                    }
+                                }, 400);
+                            }
+                        } else {
+                            alert(data.message || 'Delete failed.');
+                            btnRef.disabled = false;
+                            btnRef.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+                        }
+                    })
+                    .catch(function() {
+                        alert('Error deleting file.');
+                        btnRef.disabled = false;
+                        btnRef.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+                    });
+                };
+            })(loc, col, delBtn));
+
+            body.appendChild(catName);
+            body.appendChild(delBtn);
+            card.appendChild(body);
+            col.appendChild(card);
+            locationsEl.appendChild(col);
+        });
+    }
+
+    scanBtn.addEventListener('click', function() {
+        scanBtn.disabled = true;
+        scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+        statusEl.textContent = 'Scanning all categories...';
+        reviewEl.style.display = 'none';
+        deletedTotal = 0;
+        fetch(routes.dupScan)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                groups = data.groups || [];
+                scanBtn.disabled = false;
+                scanBtn.innerHTML = '<i class="fas fa-search"></i> Scan';
+                if (groups.length === 0) {
+                    statusEl.textContent = 'No duplicates found.';
+                } else {
+                    statusEl.textContent = 'Found ' + groups.length + ' duplicate group(s). Review below.';
+                    reviewEl.style.display = 'block';
+                    renderGroup(0);
+                }
+            })
+            .catch(function() {
+                statusEl.textContent = 'Error scanning.';
+                scanBtn.disabled = false;
+                scanBtn.innerHTML = '<i class="fas fa-search"></i> Scan';
+            });
+    });
+
+    prevBtn.addEventListener('click', function() { if (currentIdx > 0) renderGroup(currentIdx - 1); });
+    nextBtn.addEventListener('click', function() { if (currentIdx < groups.length - 1) renderGroup(currentIdx + 1); });
+})();
+
+/* ===== Script management ===== */
 function scriptMeta(name) {
     return scripts.find(function(s) { return s.name === name; });
 }

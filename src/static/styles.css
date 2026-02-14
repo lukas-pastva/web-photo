@@ -436,6 +436,32 @@ video.card-img-top {
     font-size: 0.8rem;
 }
 
+/* ===== Duplicate review ===== */
+.dup-loc-card {
+    transition: opacity 0.3s ease;
+}
+
+.dup-thumb {
+    height: 120px;
+    object-fit: cover;
+    border-radius: 0.35rem 0.35rem 0 0;
+}
+
+.dup-thumb-placeholder {
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-secondary);
+    color: var(--text-muted);
+    border-radius: 0.35rem 0.35rem 0 0;
+}
+
+.dup-del-btn {
+    min-height: 36px;
+    min-width: 70px;
+}
+
 /* ===== Dialog ===== */
 .delete-dialog {
     border: none;
@@ -655,6 +681,24 @@ video.card-img-top {
         min-height: 44px;
         min-width: 80px;
         font-size: 0.9rem;
+    }
+
+    /* Duplicate review mobile */
+    .dup-thumb,
+    .dup-thumb-placeholder {
+        height: 100px;
+    }
+
+    .dup-del-btn {
+        min-height: 44px;
+        min-width: 80px;
+        font-size: 0.85rem;
+    }
+
+    #dup-prev,
+    #dup-next {
+        min-height: 44px;
+        min-width: 44px;
     }
 }
 

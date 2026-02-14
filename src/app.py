@@ -1,5 +1,5 @@
 # app.py
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, abort, jsonify
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, abort, jsonify, Response, stream_with_context
 import os
 import logging
 import ffmpeg
@@ -14,8 +14,6 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
 import json
-from script_manager import ScriptManager
-from tasks import rebuild_previews_task
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -176,40 +174,6 @@ def extract_photo_metadata(image):
 
     return meta
 
-
-# Where long-running script state (logs, progress) is stored.
-STATE_DIR = os.environ.get('STATE_DIR', os.path.join(app.config['UPLOAD_FOLDER'], '.state'))
-os.makedirs(STATE_DIR, exist_ok=True)
-
-def rebuild_previews_runner(ctx, category=None):
-    """Admin-triggered runner that supports stop/resume."""
-    rebuild_previews_task(
-        app=app,
-        process_file=process_file,
-        allowed_file=allowed_file,
-        category=category or None,
-        progress=ctx.progress,
-        progress_key=ctx.job.progress_key,
-        stop_event=ctx.job.stop_event,
-        logger=ctx.log,
-    )
-
-MANAGED_SCRIPTS = {
-    "rebuild_previews": {
-        "label": "Rebuild previews",
-        "description": "Regenerate derived images and metadata. Resumes by skipping processed files.",
-        "runner": rebuild_previews_runner,
-        "params": {
-            "category": {
-                "label": "Category (leave blank for all)",
-                "required": False,
-            }
-        },
-        "progress_key_fn": lambda params: f"rebuild_previews:{params.get('category') or 'all'}",
-    },
-}
-
-script_manager = ScriptManager(state_dir=STATE_DIR, scripts=MANAGED_SCRIPTS)
 
 def process_file(filepath, category):
     filename = os.path.basename(filepath)
@@ -445,65 +409,10 @@ def index():
 
 @app.route('/admin')
 def admin_dashboard():
-    scripts_payload = []
-    for name, meta in MANAGED_SCRIPTS.items():
-        scripts_payload.append({
-            'name': name,
-            'label': meta.get('label', name),
-            'description': meta.get('description', ''),
-            'params': meta.get('params', {}),
-        })
-    jobs = script_manager.list_jobs()
-    for job in jobs:
-        job['processed_count'] = script_manager.progress.count(job.get('progress_key', job['script']))
     categories = _list_categories()
     form = CategoryForm()
     parent_options = build_parent_options(categories)
-    return render_template('admin.html', scripts=scripts_payload, jobs=jobs, categories=categories, form=form, parent_options=parent_options)
-
-@app.route('/admin/scripts/run', methods=['POST'])
-def start_script():
-    data = request.get_json(silent=True) or {}
-    script_name = data.get('script')
-    params = data.get('params') or {}
-    if not script_name or script_name not in MANAGED_SCRIPTS:
-        return jsonify({'error': 'Unknown script'}), 400
-    try:
-        job = script_manager.start_job(script_name, params)
-    except (RuntimeError, ValueError) as exc:
-        return jsonify({'error': str(exc)}), 400
-    return jsonify(script_manager.job_status(job.id)), 200
-
-@app.route('/admin/jobs', methods=['GET'])
-def list_jobs_api():
-    jobs = script_manager.list_jobs()
-    for job in jobs:
-        job['processed_count'] = script_manager.progress.count(job.get('progress_key', job['script']))
-    return jsonify({'jobs': jobs})
-
-@app.route('/admin/jobs/<job_id>/status', methods=['GET'])
-def job_status(job_id):
-    data = script_manager.job_status(job_id)
-    if not data:
-        return jsonify({'error': 'Job not found'}), 404
-    return jsonify(data)
-
-@app.route('/admin/jobs/<job_id>/log', methods=['GET'])
-def job_log(job_id):
-    try:
-        offset = int(request.args.get('offset', 0))
-    except ValueError:
-        offset = 0
-    log_data = script_manager.read_log(job_id, offset=offset)
-    if log_data is None:
-        return jsonify({'error': 'Job not found'}), 404
-    return jsonify(log_data)
-
-@app.route('/admin/jobs/<job_id>/stop', methods=['POST'])
-def stop_job(job_id):
-    if script_manager.stop_job(job_id):
-        return jsonify({'status': 'stopping'})
-    return jsonify({'error': 'Job not running'}), 400
+    return render_template('admin.html', categories=categories, form=form, parent_options=parent_options)
 
 @app.route('/admin/category-counts')
 def category_counts_api():
@@ -513,48 +422,62 @@ def category_counts_api():
 
 @app.route('/admin/duplicates/scan')
 def scan_duplicates():
-    base = app.config['UPLOAD_FOLDER']
-    categories = sorted(
-        c for c in os.listdir(base)
-        if os.path.isdir(os.path.join(base, c)) and not c.startswith('.')
-    )
-    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'}
-    video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
+    def generate():
+        base = app.config['UPLOAD_FOLDER']
+        categories = sorted(
+            c for c in os.listdir(base)
+            if os.path.isdir(os.path.join(base, c)) and not c.startswith('.')
+        )
+        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'}
+        video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
+        total_cats = len(categories)
 
-    file_index = {}
-    for cat in categories:
-        source_dir = os.path.join(base, cat, 'source')
-        if not os.path.isdir(source_dir):
-            continue
-        for fname in os.listdir(source_dir):
-            fpath = os.path.join(source_dir, fname)
-            if not os.path.isfile(fpath):
-                continue
-            try:
-                size = os.path.getsize(fpath)
-            except OSError:
-                continue
-            name = os.path.splitext(fname)[0]
-            ext_lower = os.path.splitext(fname)[1].lower()
-            thumb_url = None
-            if ext_lower in image_extensions:
-                thumb_rel = os.path.join(cat, 'thumbnail', name + '.jpeg')
-                if os.path.exists(os.path.join(base, thumb_rel)):
-                    thumb_url = url_for('uploaded_file', filename=thumb_rel)
-            elif ext_lower in video_extensions:
-                thumb_rel = os.path.join(cat, 'video_thumbnail', name + '.jpeg')
-                if os.path.exists(os.path.join(base, thumb_rel)):
-                    thumb_url = url_for('uploaded_file', filename=thumb_rel)
-            file_index.setdefault((fname, size), []).append({
-                'category': cat,
-                'thumbnail': thumb_url,
-            })
+        yield f"data: {json.dumps({'type': 'log', 'message': f'Starting scan across {total_cats} categories...'})}\n\n"
 
-    groups = []
-    for (fname, size), locations in file_index.items():
-        if len(locations) >= 2:
-            groups.append({'filename': fname, 'size': size, 'locations': locations})
-    return jsonify({'groups': groups})
+        file_index = {}
+        total_files = 0
+        for cat_idx, cat in enumerate(categories, 1):
+            source_dir = os.path.join(base, cat, 'source')
+            if not os.path.isdir(source_dir):
+                yield f"data: {json.dumps({'type': 'log', 'message': f'[{cat_idx}/{total_cats}] {cat}: no source dir, skipping'})}\n\n"
+                continue
+            file_count = 0
+            for fname in os.listdir(source_dir):
+                fpath = os.path.join(source_dir, fname)
+                if not os.path.isfile(fpath):
+                    continue
+                try:
+                    size = os.path.getsize(fpath)
+                except OSError:
+                    continue
+                file_count += 1
+                total_files += 1
+                name = os.path.splitext(fname)[0]
+                ext_lower = os.path.splitext(fname)[1].lower()
+                thumb_url = None
+                if ext_lower in image_extensions:
+                    thumb_rel = os.path.join(cat, 'thumbnail', name + '.jpeg')
+                    if os.path.exists(os.path.join(base, thumb_rel)):
+                        thumb_url = url_for('uploaded_file', filename=thumb_rel)
+                elif ext_lower in video_extensions:
+                    thumb_rel = os.path.join(cat, 'video_thumbnail', name + '.jpeg')
+                    if os.path.exists(os.path.join(base, thumb_rel)):
+                        thumb_url = url_for('uploaded_file', filename=thumb_rel)
+                file_index.setdefault((fname, size), []).append({
+                    'category': cat,
+                    'thumbnail': thumb_url,
+                })
+            yield f"data: {json.dumps({'type': 'log', 'message': f'[{cat_idx}/{total_cats}] {cat}: {file_count} files scanned'})}\n\n"
+
+        groups = []
+        for (fname, size), locations in file_index.items():
+            if len(locations) >= 2:
+                groups.append({'filename': fname, 'size': size, 'locations': locations})
+
+        yield f"data: {json.dumps({'type': 'log', 'message': f'Scan complete. {total_files} files across {total_cats} categories, {len(groups)} duplicate group(s) found.'})}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'groups': groups})}\n\n"
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 @app.route('/admin/duplicates/delete', methods=['POST'])
 def delete_duplicate():

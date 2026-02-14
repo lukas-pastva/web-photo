@@ -70,6 +70,7 @@
                     </button>
                 </div>
                 <p class="text-muted small mb-2">Find files with the same name and size across categories.</p>
+                <div id="dup-log" class="log-box mb-2" style="display:none"></div>
                 <div id="dup-status" class="small text-muted mb-2"></div>
                 <div id="dup-review" style="display:none">
                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -81,60 +82,6 @@
                     </div>
                     <div id="dup-file-info" class="small mb-2 font-weight-bold"></div>
                     <div id="dup-locations" class="row"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Scripts -->
-<div class="row">
-    <div class="col-12 col-md-4">
-        <div class="card mb-3">
-            <div class="card-body">
-                <h6 class="card-title">Run script</h6>
-                <div class="form-group">
-                    <label for="script-select" class="small">Script</label>
-                    <select id="script-select" class="form-control form-control-sm"></select>
-                </div>
-                <p id="script-description" class="text-muted small mb-2"></p>
-                <div id="script-params"></div>
-                <div id="admin-status" class="small text-muted mb-2"></div>
-                <button id="run-script-btn" type="button" class="btn btn-primary btn-block btn-sm mb-2">Run</button>
-                <button id="stop-script-btn" type="button" class="btn btn-outline-danger btn-block btn-sm" disabled>Stop</button>
-            </div>
-        </div>
-        <div class="card mb-3 d-none d-md-block">
-            <div class="card-body">
-                <h6 class="card-title">Info</h6>
-                <ul class="small pl-3 mb-0">
-                    <li>Scripts run in the background.</li>
-                    <li>Processed items are remembered for resume.</li>
-                    <li>Stopping is cooperative.</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-8">
-        <div class="card mb-3">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="card-title mb-0">Live output</h6>
-                    <span id="active-job-badge" class="badge badge-secondary">No job</span>
-                </div>
-                <div id="log-output" class="log-box">Select a job to view output.</div>
-            </div>
-        </div>
-        <div class="card mb-3">
-            <div class="card-body">
-                <h6 class="card-title">Jobs</h6>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover" id="jobs-table">
-                        <thead>
-                            <tr><th>Script</th><th>Status</th><th>#</th><th>Started</th><th></th></tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
                 </div>
             </div>
         </div>
@@ -153,23 +100,12 @@
 </dialog>
 
 <script>
-const scripts = {{ scripts|tojson }};
-let jobs = {{ jobs|tojson }};
 const routes = {
-    start: "{{ url_for('start_script') }}",
-    list: "{{ url_for('list_jobs_api') }}",
-    log: "{{ url_for('job_log', job_id='JOB_ID') }}",
-    stop: "{{ url_for('stop_job', job_id='JOB_ID') }}",
     categoryCounts: "{{ url_for('category_counts_api') }}",
     dupScan: "{{ url_for('scan_duplicates') }}",
     dupDelete: "{{ url_for('delete_duplicate') }}",
 };
 const deleteCategoryRouteTemplate = "{{ url_for('delete_category', category='CATEGORY_PLACEHOLDER') }}";
-
-let activeJobId = null;
-let logOffset = 0;
-let logTimer = null;
-const LOG_POLL_MS = 1200;
 
 /* ===== Category counts (async) ===== */
 let catCounts = {};
@@ -265,6 +201,7 @@ let catCounts = {};
 (function() {
     var scanBtn = document.getElementById('scan-dup-btn');
     var statusEl = document.getElementById('dup-status');
+    var logEl = document.getElementById('dup-log');
     var reviewEl = document.getElementById('dup-review');
     var counterEl = document.getElementById('dup-counter');
     var fileInfoEl = document.getElementById('dup-file-info');
@@ -384,12 +321,20 @@ let catCounts = {};
     scanBtn.addEventListener('click', function() {
         scanBtn.disabled = true;
         scanBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
-        statusEl.textContent = 'Scanning all categories...';
+        logEl.textContent = '';
+        logEl.style.display = 'block';
+        statusEl.textContent = '';
         reviewEl.style.display = 'none';
         deletedTotal = 0;
-        fetch(routes.dupScan)
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
+
+        var es = new EventSource(routes.dupScan);
+        es.onmessage = function(event) {
+            var data = JSON.parse(event.data);
+            if (data.type === 'log') {
+                logEl.textContent += data.message + '\n';
+                logEl.scrollTop = logEl.scrollHeight;
+            } else if (data.type === 'done') {
+                es.close();
                 groups = data.groups || [];
                 scanBtn.disabled = false;
                 scanBtn.innerHTML = '<i class="fas fa-search"></i> Scan';
@@ -400,202 +345,20 @@ let catCounts = {};
                     reviewEl.style.display = 'block';
                     renderGroup(0);
                 }
-            })
-            .catch(function() {
-                statusEl.textContent = 'Error scanning.';
-                scanBtn.disabled = false;
-                scanBtn.innerHTML = '<i class="fas fa-search"></i> Scan';
-            });
+            }
+        };
+        es.onerror = function() {
+            es.close();
+            statusEl.textContent = 'Error scanning.';
+            scanBtn.disabled = false;
+            scanBtn.innerHTML = '<i class="fas fa-search"></i> Scan';
+        };
     });
 
     prevBtn.addEventListener('click', function() { if (currentIdx > 0) renderGroup(currentIdx - 1); });
     nextBtn.addEventListener('click', function() { if (currentIdx < groups.length - 1) renderGroup(currentIdx + 1); });
 })();
 
-/* ===== Script management ===== */
-function scriptMeta(name) {
-    return scripts.find(function(s) { return s.name === name; });
-}
 
-function renderScriptSelector() {
-    var select = document.getElementById('script-select');
-    select.innerHTML = '';
-    scripts.forEach(function(script, idx) {
-        var option = document.createElement('option');
-        option.value = script.name;
-        option.textContent = script.label || script.name;
-        if (idx === 0) option.selected = true;
-        select.appendChild(option);
-    });
-    select.addEventListener('change', function() { updateScriptDetails(select.value); });
-    if (scripts.length) updateScriptDetails(select.value);
-}
-
-function updateScriptDetails(scriptName) {
-    var details = scriptMeta(scriptName);
-    document.getElementById('script-description').textContent = details?.description || '';
-    var paramsContainer = document.getElementById('script-params');
-    paramsContainer.innerHTML = '';
-    if (!details || !details.params) return;
-    Object.entries(details.params).forEach(function(entry) {
-        var key = entry[0], meta = entry[1];
-        var group = document.createElement('div');
-        group.className = 'form-group';
-        var label = document.createElement('label');
-        label.className = 'small';
-        label.setAttribute('for', 'param-' + key);
-        label.textContent = meta.label || key;
-        var input = document.createElement('input');
-        input.className = 'form-control form-control-sm';
-        input.id = 'param-' + key;
-        input.name = key;
-        if (meta.required) input.required = true;
-        group.appendChild(label);
-        group.appendChild(input);
-        paramsContainer.appendChild(group);
-    });
-}
-
-function collectParams(scriptName) {
-    var details = scriptMeta(scriptName) || {};
-    var params = {};
-    if (!details.params) return params;
-    Object.keys(details.params).forEach(function(key) {
-        var input = document.getElementById('param-' + key);
-        if (!input) return;
-        var value = input.value.trim();
-        params[key] = value.length ? value : null;
-    });
-    return params;
-}
-
-function statusBadge(status) {
-    var map = { running: 'badge-primary', completed: 'badge-success', failed: 'badge-danger', stopped: 'badge-warning', queued: 'badge-secondary' };
-    return '<span class="badge ' + (map[status] || 'badge-secondary') + ' text-uppercase">' + status + '</span>';
-}
-
-function renderJobs(jobList) {
-    var tbody = document.querySelector('#jobs-table tbody');
-    tbody.innerHTML = '';
-    jobList.forEach(function(job) {
-        var row = document.createElement('tr');
-        row.dataset.jobId = job.id;
-        var label = (scriptMeta(job.script)?.label) || job.script;
-        row.innerHTML = '<td>' + label + '</td><td>' + statusBadge(job.status) + '</td><td>' + (job.processed_count || 0) + '</td><td class="small text-muted">' + (job.started_at || '') + '</td><td><button class="btn btn-link btn-sm p-0">log</button></td>';
-        row.addEventListener('click', function() { selectJob(job.id); });
-        tbody.appendChild(row);
-    });
-}
-
-function setStatusMessage(msg, isError) {
-    var el = document.getElementById('admin-status');
-    el.textContent = msg;
-    el.classList.toggle('text-danger', !!isError);
-}
-
-function appendLog(text) {
-    if (!text) return;
-    var logBox = document.getElementById('log-output');
-    var atBottom = Math.abs(logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight) < 30;
-    logBox.textContent += text;
-    if (atBottom) logBox.scrollTop = logBox.scrollHeight;
-}
-
-async function fetchLog() {
-    if (!activeJobId) return;
-    var res = await fetch(routes.log.replace('JOB_ID', activeJobId) + '?offset=' + logOffset);
-    if (!res.ok) return;
-    var payload = await res.json();
-    if (typeof payload.offset === 'number') logOffset = payload.offset;
-    appendLog(payload.data);
-    if (payload.status && payload.status !== 'running') {
-        document.getElementById('stop-script-btn').disabled = true;
-        clearInterval(logTimer);
-        logTimer = null;
-    }
-}
-
-function startLogPolling() {
-    clearInterval(logTimer);
-    if (!activeJobId) return;
-    logTimer = setInterval(fetchLog, LOG_POLL_MS);
-    fetchLog();
-}
-
-async function refreshJobs() {
-    try {
-        var res = await fetch(routes.list);
-        if (!res.ok) return;
-        var payload = await res.json();
-        jobs = payload.jobs || [];
-        renderJobs(jobs);
-        var active = jobs.find(function(j) { return j.id === activeJobId; });
-        if (active) updateActiveBadge(active);
-    } catch(e) {}
-}
-
-async function runScript(event) {
-    event.preventDefault();
-    var scriptName = document.getElementById('script-select').value;
-    if (!scriptName) return;
-    setStatusMessage('Starting...');
-    try {
-        var res = await fetch(routes.start, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({script: scriptName, params: collectParams(scriptName)})
-        });
-        var payload = await res.json();
-        if (!res.ok || payload.error) { setStatusMessage(payload.error || 'Failed.', true); return; }
-        await refreshJobs();
-        setStatusMessage('Started.');
-        selectJob(payload.id);
-    } catch(e) { setStatusMessage('Error.', true); }
-}
-
-async function stopScript(event) {
-    event.preventDefault();
-    if (!activeJobId) return;
-    try {
-        var res = await fetch(routes.stop.replace('JOB_ID', activeJobId), {method: 'POST'});
-        var payload = await res.json();
-        if (!res.ok || payload.error) { setStatusMessage(payload.error || 'Unable to stop.', true); return; }
-        setStatusMessage('Stop requested...');
-    } catch(e) {}
-}
-
-function selectJob(jobId) {
-    activeJobId = jobId;
-    logOffset = 0;
-    var job = jobs.find(function(j) { return j.id === jobId; });
-    updateActiveBadge(job);
-    document.getElementById('log-output').textContent = '';
-    startLogPolling();
-}
-
-function updateActiveBadge(job) {
-    var badge = document.getElementById('active-job-badge');
-    if (!job) {
-        badge.textContent = 'No job';
-        badge.className = 'badge badge-secondary';
-        document.getElementById('stop-script-btn').disabled = true;
-        return;
-    }
-    var isRunning = job.status === 'running';
-    badge.textContent = job.script + ' (' + job.status + ')';
-    badge.className = 'badge badge-pill badge-' + (isRunning ? 'primary' : 'secondary');
-    document.getElementById('stop-script-btn').disabled = !isRunning;
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    renderScriptSelector();
-    renderJobs(jobs);
-    var running = jobs.find(function(j) { return j.status === 'running'; });
-    if (running) selectJob(running.id);
-    else if (jobs.length) selectJob(jobs[0].id);
-    document.getElementById('run-script-btn').addEventListener('click', runScript);
-    document.getElementById('stop-script-btn').addEventListener('click', stopScript);
-    setInterval(refreshJobs, 4000);
-});
 </script>
 {% endblock %}

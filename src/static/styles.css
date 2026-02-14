@@ -294,17 +294,13 @@ video.card-img-top {
 
 /* ===== Tree (home page) ===== */
 .tree-container {
-    border: 1px solid var(--border);
-    border-radius: 0.35rem;
     background-color: var(--tree-bg);
-    overflow-y: auto;
-    max-height: 70vh;
 }
 
 #category-tree .list-group-item {
     background-color: var(--tree-bg);
     color: var(--text);
-    border-color: var(--border);
+    border: none;
     padding: 0.6rem 1rem;
     font-size: 1rem;
 }
@@ -318,9 +314,7 @@ video.card-img-top {
 }
 
 .list-group {
-    border-color: var(--border) !important;
-    border-width: 1px !important;
-    border-style: solid !important;
+    border: none !important;
 }
 
 /* ===== Forms ===== */

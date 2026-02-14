@@ -391,6 +391,25 @@ def build_tree_data(categories):
         return nodes
     return build_nodes(tree)
 
+def build_parent_options(categories):
+    """Build a flat indented list of parent options from hierarchical categories."""
+    tree = {}
+    for category in categories:
+        parts = category.split('-')
+        current_level = tree
+        for part in parts:
+            if part not in current_level:
+                current_level[part] = {}
+            current_level = current_level[part]
+    options = []
+    def walk(current_dict, parent_path='', depth=0):
+        for name in sorted(current_dict.keys()):
+            full_path = f"{parent_path}-{name}" if parent_path else name
+            options.append({'path': full_path, 'label': ('— ' * depth) + name})
+            walk(current_dict[name], full_path, depth + 1)
+    walk(tree)
+    return options
+
 class CategoryForm(FlaskForm):
     category_name = StringField('Category Name', validators=[DataRequired()])
     submit = SubmitField('Create Category')
@@ -398,9 +417,8 @@ class CategoryForm(FlaskForm):
 @app.route('/')
 def index():
     categories = _list_categories()
-    form = CategoryForm()
     treeData = build_tree_data(categories)
-    return render_template('index.html', categories=categories, form=form, treeData=treeData)
+    return render_template('index.html', categories=categories, treeData=treeData)
 
 @app.route('/admin')
 def admin_dashboard():
@@ -416,7 +434,9 @@ def admin_dashboard():
     for job in jobs:
         job['processed_count'] = script_manager.progress.count(job.get('progress_key', job['script']))
     categories = _list_categories()
-    return render_template('admin.html', scripts=scripts_payload, jobs=jobs, categories=categories)
+    form = CategoryForm()
+    parent_options = build_parent_options(categories)
+    return render_template('admin.html', scripts=scripts_payload, jobs=jobs, categories=categories, form=form, parent_options=parent_options)
 
 @app.route('/admin/scripts/run', methods=['POST'])
 def start_script():
@@ -532,12 +552,14 @@ def category_view(category):
 def create_category():
     form = CategoryForm()
     if form.validate_on_submit():
-        category = secure_filename(form.category_name.data)
+        parent = request.form.get('parent_category', '').strip()
+        child = secure_filename(form.category_name.data)
+        category = f"{parent}-{child}" if parent else child
         category_path = os.path.join(app.config['UPLOAD_FOLDER'], category)
         os.makedirs(category_path, exist_ok=True)
         for sub_dir in ['source', 'largest', 'medium', 'thumbnail']:
             os.makedirs(os.path.join(category_path, sub_dir), exist_ok=True)
-    return redirect(url_for('index'))
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/category/delete/<category>', methods=['POST'])
 def delete_category(category):

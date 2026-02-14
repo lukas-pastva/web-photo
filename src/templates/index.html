@@ -1,21 +1,10 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="row">
-    <div class="col-12 col-md-6 col-lg-4">
+    <div class="col-12 col-md-8 col-lg-6">
         <div class="tree-container mb-3">
             <div id="category-tree"></div>
         </div>
-        <form action="{{ url_for('create_category') }}" method="post" class="create-category-form">
-            {{ form.hidden_tag() }}
-            <div class="input-group">
-                {{ form.category_name(class="form-control", placeholder="New category name") }}
-                <div class="input-group-append">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Create
-                    </button>
-                </div>
-            </div>
-        </form>
     </div>
 </div>
 {% endblock %}
@@ -34,7 +23,7 @@ $(document).ready(function(){
         nodeIcon: 'fas fa-folder',
         selectedBackColor: '#007bff',
         selectedColor: '#fff',
-        levels: 3,
+        levels: 99,
         onNodeSelected: function(event, node) {
             window.location.href = node.href;
         }

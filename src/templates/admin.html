@@ -3,23 +3,54 @@
 <h5 class="mb-3">Admin</h5>
 
 <!-- Category Management -->
-<div class="card mb-3">
-    <div class="card-body">
-        <h6 class="card-title">Categories</h6>
-        {% if categories %}
-        <div class="category-admin-list">
-            {% for cat in categories %}
-            <div class="category-admin-item d-flex justify-content-between align-items-center" data-category="{{ cat }}">
-                <a href="{{ url_for('category_view', category=cat) }}" class="category-admin-link">{{ cat }}</a>
-                <button class="btn btn-outline-danger btn-xs delete-category-btn" data-category="{{ cat }}" title="Delete">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
+<div class="row mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="card-title">Create Category</h6>
+                <form action="{{ url_for('create_category') }}" method="post">
+                    {{ form.hidden_tag() }}
+                    <div class="form-group">
+                        <label for="parent-category" class="small">Parent level</label>
+                        <select name="parent_category" id="parent-category" class="form-control form-control-sm">
+                            <option value="">Root (top level)</option>
+                            {% for opt in parent_options %}
+                            <option value="{{ opt.path }}">{{ opt.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="category_name" class="small">Name</label>
+                        {{ form.category_name(class="form-control form-control-sm", placeholder="e.g. summer-2024", id="category_name") }}
+                    </div>
+                    <div id="category-preview" class="small text-muted mb-2"></div>
+                    <button type="submit" class="btn btn-primary btn-block btn-sm">
+                        <i class="fas fa-plus"></i> Create
+                    </button>
+                </form>
             </div>
-            {% endfor %}
         </div>
-        {% else %}
-        <p class="text-muted small mb-0">No categories yet.</p>
-        {% endif %}
+    </div>
+    <div class="col-12 col-md-8">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h6 class="card-title">Categories</h6>
+                {% if categories %}
+                <div class="category-admin-list">
+                    {% for cat in categories %}
+                    <div class="category-admin-item d-flex justify-content-between align-items-center" data-category="{{ cat }}">
+                        <a href="{{ url_for('category_view', category=cat) }}" class="category-admin-link">{{ cat }}</a>
+                        <button class="btn btn-outline-danger btn-xs delete-category-btn" data-category="{{ cat }}" title="Delete">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">No categories yet.</p>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
 
@@ -103,6 +134,25 @@ let activeJobId = null;
 let logOffset = 0;
 let logTimer = null;
 const LOG_POLL_MS = 1200;
+
+/* Category creation preview */
+(function() {
+    var parentSelect = document.getElementById('parent-category');
+    var nameInput = document.getElementById('category_name');
+    var preview = document.getElementById('category-preview');
+    function updatePreview() {
+        var parent = parentSelect.value;
+        var name = nameInput.value.trim();
+        if (name) {
+            var full = parent ? parent + '-' + name : name;
+            preview.textContent = 'Will create: ' + full;
+        } else {
+            preview.textContent = '';
+        }
+    }
+    parentSelect.addEventListener('change', updatePreview);
+    nameInput.addEventListener('input', updatePreview);
+})();
 
 /* Category delete handling */
 (function() {

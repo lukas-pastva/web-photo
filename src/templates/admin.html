@@ -38,11 +38,16 @@
                 {% if categories %}
                 <div class="category-admin-list">
                     {% for cat in categories %}
+                    {% set counts = cat_counts.get(cat, {'photos': 0, 'videos': 0}) %}
                     <div class="category-admin-item d-flex justify-content-between align-items-center" data-category="{{ cat }}">
                         <a href="{{ url_for('category_view', category=cat) }}" class="category-admin-link">{{ cat }}</a>
-                        <button class="btn btn-outline-danger btn-xs delete-category-btn" data-category="{{ cat }}" title="Delete">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
+                        <div class="d-flex align-items-center category-admin-actions">
+                            <span class="badge badge-light mr-1" title="Photos"><i class="fas fa-image"></i> {{ counts.photos }}</span>
+                            <span class="badge badge-light mr-2" title="Videos"><i class="fas fa-video"></i> {{ counts.videos }}</span>
+                            <button class="btn btn-outline-danger btn-sm delete-category-btn" data-category="{{ cat }}" title="Delete">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -129,6 +134,7 @@ const routes = {
     stop: "{{ url_for('stop_job', job_id='JOB_ID') }}",
 };
 const deleteCategoryRouteTemplate = "{{ url_for('delete_category', category='CATEGORY_PLACEHOLDER') }}";
+const catCounts = {{ cat_counts|tojson }};
 
 let activeJobId = null;
 let logOffset = 0;
@@ -166,7 +172,13 @@ const LOG_POLL_MS = 1200;
             e.preventDefault();
             e.stopPropagation();
             pendingCategory = this.dataset.category;
-            dialogText.textContent = "Delete category '" + pendingCategory + "' and all its contents?";
+            var c = catCounts[pendingCategory] || {photos: 0, videos: 0};
+            var info = "Delete category '" + pendingCategory + "'?";
+            if (c.photos || c.videos) {
+                info += "\n\nContains: " + c.photos + " photo(s), " + c.videos + " video(s).";
+            }
+            dialogText.textContent = info;
+            dialogText.style.whiteSpace = 'pre-line';
             dialog.showModal();
         });
     });

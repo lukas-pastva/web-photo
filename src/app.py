@@ -61,6 +61,29 @@ def _list_categories():
     )
 
 
+def _category_counts(categories):
+    """Return dict mapping category name to photo and video counts."""
+    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'}
+    video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
+    base = app.config['UPLOAD_FOLDER']
+    counts = {}
+    for cat in categories:
+        photos = 0
+        videos = 0
+        largest_dir = os.path.join(base, cat, 'largest')
+        if os.path.isdir(largest_dir):
+            for f in os.listdir(largest_dir):
+                if os.path.splitext(f)[1].lower() in image_extensions:
+                    photos += 1
+        source_dir = os.path.join(base, cat, 'source')
+        if os.path.isdir(source_dir):
+            for f in os.listdir(source_dir):
+                if os.path.splitext(f)[1].lower() in video_extensions:
+                    videos += 1
+        counts[cat] = {'photos': photos, 'videos': videos}
+    return counts
+
+
 def extract_photo_metadata(image):
     """Extract key EXIF metadata fields from a PIL Image for UI display."""
     meta = {}
@@ -171,6 +194,84 @@ def rebuild_previews_runner(ctx, category=None):
         logger=ctx.log,
     )
 
+def remove_duplicates_runner(ctx, **kwargs):
+    """Find and remove duplicate source files (same name and size) across categories."""
+    base = app.config['UPLOAD_FOLDER']
+    categories = [
+        c for c in os.listdir(base)
+        if os.path.isdir(os.path.join(base, c)) and not c.startswith('.')
+    ]
+    # Build index: (filename, size) -> list of (category, full_path)
+    file_index = {}
+    for cat in sorted(categories):
+        source_dir = os.path.join(base, cat, 'source')
+        if not os.path.isdir(source_dir):
+            continue
+        for fname in os.listdir(source_dir):
+            fpath = os.path.join(source_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            try:
+                size = os.path.getsize(fpath)
+            except OSError:
+                continue
+            key = (fname, size)
+            file_index.setdefault(key, []).append((cat, fpath))
+
+    duplicates_found = 0
+    deleted = 0
+    for (fname, size), locations in file_index.items():
+        if ctx.should_stop():
+            ctx.log("Stop requested. Exiting early.")
+            return
+        if len(locations) < 2:
+            continue
+        duplicates_found += 1
+        keep_cat, keep_path = locations[0]
+        ctx.log(f"Duplicate '{fname}' ({size} bytes) found in {len(locations)} categories. Keeping in '{keep_cat}'.")
+        for dup_cat, dup_path in locations[1:]:
+            if ctx.should_stop():
+                ctx.log("Stop requested. Exiting early.")
+                return
+            try:
+                os.remove(dup_path)
+                ctx.log(f"  Deleted from '{dup_cat}': {dup_path}")
+                # Also clean up derived files
+                name = os.path.splitext(fname)[0]
+                for sub in ['largest', 'medium', 'thumbnail']:
+                    sub_dir = os.path.join(base, dup_cat, sub)
+                    if os.path.isdir(sub_dir):
+                        for derived in os.listdir(sub_dir):
+                            if os.path.splitext(derived)[0] == name:
+                                try:
+                                    os.remove(os.path.join(sub_dir, derived))
+                                except OSError:
+                                    pass
+                # Clean up video thumbnail
+                vt_path = os.path.join(base, dup_cat, 'video_thumbnail', name + '.jpeg')
+                if os.path.exists(vt_path):
+                    try:
+                        os.remove(vt_path)
+                    except OSError:
+                        pass
+                # Clean up dimensions.json entry
+                dims_path = os.path.join(base, dup_cat, 'dimensions.json')
+                if os.path.exists(dims_path):
+                    try:
+                        with open(dims_path, 'r') as f:
+                            dims = json.load(f)
+                        if name in dims:
+                            del dims[name]
+                            with open(dims_path, 'w') as f:
+                                json.dump(dims, f)
+                    except Exception:
+                        pass
+                deleted += 1
+            except Exception as exc:
+                ctx.log(f"  Failed to delete from '{dup_cat}': {exc}")
+
+    ctx.log(f"Done. Found {duplicates_found} duplicate groups, deleted {deleted} files.")
+
 MANAGED_SCRIPTS = {
     "rebuild_previews": {
         "label": "Rebuild previews",
@@ -183,6 +284,13 @@ MANAGED_SCRIPTS = {
             }
         },
         "progress_key_fn": lambda params: f"rebuild_previews:{params.get('category') or 'all'}",
+    },
+    "remove_duplicates": {
+        "label": "Remove duplicates",
+        "description": "Find and delete duplicate source files (same filename and size) across categories.",
+        "runner": remove_duplicates_runner,
+        "params": {},
+        "progress_key_fn": lambda params: "remove_duplicates",
     },
 }
 
@@ -434,9 +542,10 @@ def admin_dashboard():
     for job in jobs:
         job['processed_count'] = script_manager.progress.count(job.get('progress_key', job['script']))
     categories = _list_categories()
+    cat_counts = _category_counts(categories)
     form = CategoryForm()
     parent_options = build_parent_options(categories)
-    return render_template('admin.html', scripts=scripts_payload, jobs=jobs, categories=categories, form=form, parent_options=parent_options)
+    return render_template('admin.html', scripts=scripts_payload, jobs=jobs, categories=categories, cat_counts=cat_counts, form=form, parent_options=parent_options)
 
 @app.route('/admin/scripts/run', methods=['POST'])
 def start_script():

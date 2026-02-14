@@ -393,14 +393,15 @@ video.card-img-top {
 
 /* Category admin list */
 .category-admin-list {
-    max-height: 300px;
+    max-height: 400px;
     overflow-y: auto;
 }
 
 .category-admin-item {
-    padding: 0.3rem 0.5rem;
+    padding: 0.45rem 0.5rem;
     border-bottom: 1px solid var(--border);
     background-color: var(--category-item-bg);
+    min-height: 44px;
 }
 .category-admin-item:last-child { border-bottom: none; }
 .category-admin-item:hover { background-color: var(--category-item-hover); }
@@ -416,6 +417,24 @@ video.card-img-top {
     white-space: nowrap;
 }
 .category-admin-link:hover { color: var(--link-color); }
+
+.category-admin-actions {
+    flex-shrink: 0;
+}
+
+.category-admin-actions .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.4rem;
+}
+
+.category-admin-actions .delete-category-btn {
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+}
 
 /* ===== Dialog ===== */
 .delete-dialog {
@@ -593,6 +612,49 @@ video.card-img-top {
 
     .upload-drop-zone {
         padding: 1rem 0.75rem;
+    }
+
+    /* Admin mobile improvements */
+    .category-admin-item {
+        padding: 0.5rem;
+        min-height: 48px;
+    }
+
+    .category-admin-link {
+        font-size: 0.9rem;
+    }
+
+    .category-admin-actions .delete-category-btn {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 0.9rem;
+    }
+
+    .category-admin-actions .badge {
+        font-size: 0.7rem;
+        padding: 0.3rem 0.45rem;
+    }
+
+    /* Bigger admin form controls on mobile */
+    .card-body .btn-sm,
+    .card-body .btn-block {
+        min-height: 44px;
+        font-size: 0.9rem;
+    }
+
+    .card-body .form-control-sm {
+        min-height: 40px;
+        font-size: 0.9rem;
+    }
+
+    .delete-dialog {
+        width: calc(100vw - 2rem);
+    }
+
+    .dialog-actions .btn {
+        min-height: 44px;
+        min-width: 80px;
+        font-size: 0.9rem;
     }
 }
 

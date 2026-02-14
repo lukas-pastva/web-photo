@@ -18,7 +18,9 @@
         </form>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 $(document).ready(function(){
     var treeData = {{ treeData|tojson }};

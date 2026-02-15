@@ -393,6 +393,21 @@ video.card-img-top {
     min-height: 48px;
 }
 
+/* ===== Admin sections ===== */
+.admin-section-header {
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid var(--border);
+}
+.admin-section-categories { color: #007bff; border-bottom-color: #007bff; }
+.admin-section-duplicates { color: #fd7e14; border-bottom-color: #fd7e14; }
+.admin-card-categories { border-left: 3px solid #007bff; }
+.admin-card-duplicates { border-left: 3px solid #fd7e14; }
+
 /* ===== Admin ===== */
 .log-box {
     background-color: var(--log-bg);

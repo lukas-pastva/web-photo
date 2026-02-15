@@ -3,9 +3,10 @@
 <h5 class="mb-3">Admin</h5>
 
 <!-- Category Management -->
+<h6 class="admin-section-header admin-section-categories"><i class="fas fa-folder"></i> Categories</h6>
 <div class="row mb-3">
     <div class="col-12 col-md-4">
-        <div class="card mb-3">
+        <div class="card mb-3 admin-card-categories">
             <div class="card-body">
                 <h6 class="card-title">Create Category</h6>
                 <form action="{{ url_for('create_category') }}" method="post">
@@ -32,7 +33,7 @@
         </div>
     </div>
     <div class="col-12 col-md-8">
-        <div class="card mb-3">
+        <div class="card mb-3 admin-card-categories">
             <div class="card-body">
                 <h6 class="card-title">Categories</h6>
                 {% if categories %}
@@ -59,12 +60,13 @@
 </div>
 
 <!-- Duplicates -->
+<h6 class="admin-section-header admin-section-duplicates"><i class="fas fa-clone"></i> Duplicates</h6>
 <div class="row mb-3">
     <div class="col-12">
-        <div class="card mb-3">
+        <div class="card mb-3 admin-card-duplicates">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h6 class="card-title mb-0">Duplicates</h6>
+                    <h6 class="card-title mb-0">Find &amp; Review</h6>
                     <button id="scan-dup-btn" class="btn btn-primary btn-sm">
                         <i class="fas fa-search"></i> Scan
                     </button>

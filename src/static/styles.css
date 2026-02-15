@@ -604,6 +604,32 @@ video.card-img-top {
     }
 }
 
+/* ===== Download overlay ===== */
+.download-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.download-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.download-overlay-content {
+    background-color: var(--bg-card);
+    color: var(--text);
+    padding: 2rem 2.5rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
 /* ===== Floating scroll button ===== */
 .scroll-fab {
     position: fixed;

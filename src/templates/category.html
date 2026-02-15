@@ -10,18 +10,26 @@
 
 <!-- Download buttons row -->
 <div class="download-bar mb-2">
-    <a href="{{ url_for('download_category', category=category, size='source') }}" class="btn btn-outline-primary btn-sm" title="Original">
+    <a href="{{ url_for('download_category', category=category, size='source') }}" class="btn btn-outline-primary btn-sm download-btn" title="Original">
         <i class="fas fa-download"></i> Orig
     </a>
-    <a href="{{ url_for('download_category', category=category, size='largest') }}" class="btn btn-outline-info btn-sm" title="Large">
+    <a href="{{ url_for('download_category', category=category, size='largest') }}" class="btn btn-outline-info btn-sm download-btn" title="Large">
         <i class="fas fa-download"></i> Large
     </a>
-    <a href="{{ url_for('download_category', category=category, size='medium') }}" class="btn btn-outline-secondary btn-sm" title="Medium">
+    <a href="{{ url_for('download_category', category=category, size='medium') }}" class="btn btn-outline-secondary btn-sm download-btn" title="Medium">
         <i class="fas fa-download"></i> Med
     </a>
-    <a href="{{ url_for('download_videos', category=category) }}" class="btn btn-outline-warning btn-sm" title="Videos">
+    <a href="{{ url_for('download_videos', category=category) }}" class="btn btn-outline-warning btn-sm download-btn" title="Videos">
         <i class="fas fa-download"></i> Vids
     </a>
+</div>
+
+<!-- Download overlay -->
+<div class="download-overlay" id="download-overlay">
+    <div class="download-overlay-content">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2 mb-0" id="download-overlay-text">Preparing download...</p>
+    </div>
 </div>
 
 <!-- Media Tabs + Zoom -->
@@ -284,6 +292,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (img.complete) {
             img.closest('.thumb-container')?.classList.remove('loading');
         }
+    });
+
+    // Download overlay
+    var overlay = document.getElementById('download-overlay');
+    var overlayText = document.getElementById('download-overlay-text');
+    document.querySelectorAll('.download-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            overlayText.textContent = 'Preparing ' + btn.title.toLowerCase() + ' download...';
+            overlay.classList.add('active');
+            // Hide overlay after a delay — browser starts download in background
+            setTimeout(function() { overlay.classList.remove('active'); }, 5000);
+        });
     });
 
     // Video poster -> player

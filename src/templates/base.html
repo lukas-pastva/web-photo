@@ -38,10 +38,8 @@
         </div>
     </nav>
 
-    <div class="container-fluid px-2 px-sm-3 mt-2">
-        <div id="page-content">
-            {% block content %}{% endblock %}
-        </div>
+    <div class="container-fluid px-2 px-sm-3 mt-2" id="page-content">
+        {% block content %}{% endblock %}
     </div>
 
     <!-- Floating scroll button -->
@@ -160,11 +158,8 @@
             var scale = ZOOM_SCALES[idx];
             var content = document.getElementById('page-content');
 
-            // Zoom the whole page
-            if (content) {
-                content.style.zoom = scale;
-                content.style.width = scale !== 1 ? (100 / scale) + '%' : '';
-            }
+            // Zoom the whole page (like browser zoom)
+            document.documentElement.style.zoom = scale;
 
             // Gallery pages: also change columns + gaps
             var grids = document.querySelectorAll('.gallery-grid');

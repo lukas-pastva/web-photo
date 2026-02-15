@@ -116,6 +116,16 @@ a:hover { color: var(--link-color); opacity: 0.85; }
 .navbar-brand:hover { opacity: 0.9; }
 .navbar-brand i { margin-right: 0.25rem; }
 
+/* ===== Navbar zoom buttons ===== */
+.zoom-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .theme-toggle {
     background: none;
     border: 1px solid var(--border);

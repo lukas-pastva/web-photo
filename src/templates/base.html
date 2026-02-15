@@ -145,6 +145,7 @@
             'col-6 col-sm-6 col-md-4 col-lg-4',
             'col-12 col-sm-6 col-md-6 col-lg-4'
         ];
+        var ZOOM_SCALES = [0.5, 0.65, 0.8, 1.0, 1.25, 1.5, 1.85];
         var GRID_GAPS = ['1px', '1px', '2px', '0.2rem', '0.3rem', '0.4rem', '0.5rem'];
         var DEFAULT_IDX = 3;
         var COL_RE = /\bcol(-sm|-md|-lg|-xl)?-\d{1,2}\b/g;
@@ -154,16 +155,28 @@
         function applyZoom(i) {
             idx = Math.max(0, Math.min(COL_CONFIGS.length - 1, i));
             localStorage.setItem(STORAGE_KEY, idx);
+            var scale = ZOOM_SCALES[idx];
+            var content = document.getElementById('page-content');
+
+            // Zoom the whole page
+            if (content) {
+                content.style.zoom = scale;
+                content.style.width = scale !== 1 ? (100 / scale) + '%' : '';
+            }
+
+            // Gallery pages: also change columns + gaps
             var grids = document.querySelectorAll('.gallery-grid');
             grids.forEach(function(grid) {
                 grid.style.setProperty('--grid-gap', GRID_GAPS[idx]);
             });
             var items = document.querySelectorAll('.gallery-grid > [class*="col-"]');
-            var newClasses = COL_CONFIGS[idx].split(' ');
-            items.forEach(function(el) {
-                el.className = el.className.replace(COL_RE, '').replace(/\s+/g, ' ').trim();
-                newClasses.forEach(function(cls) { el.classList.add(cls); });
-            });
+            if (items.length > 0) {
+                var newClasses = COL_CONFIGS[idx].split(' ');
+                items.forEach(function(el) {
+                    el.className = el.className.replace(COL_RE, '').replace(/\s+/g, ' ').trim();
+                    newClasses.forEach(function(cls) { el.classList.add(cls); });
+                });
+            }
             document.getElementById('zoom-out').disabled = idx <= 0;
             document.getElementById('zoom-in').disabled = idx >= COL_CONFIGS.length - 1;
         }

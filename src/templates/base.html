@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="auto">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <title>Photo Organizer</title>
@@ -17,7 +17,7 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <!-- Custom styles -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=6">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=7">
 </head>
 <body>
     <nav class="navbar navbar-expand-md">
@@ -101,20 +101,20 @@
         const toggle = document.getElementById('theme-toggle');
         const icon = document.getElementById('theme-icon');
         const html = document.documentElement;
-        const modes = ['auto', 'light', 'dark'];
-        let current = localStorage.getItem(STORAGE_KEY) || 'auto';
+        const modes = ['light', 'dark', 'midnight'];
+        let current = localStorage.getItem(STORAGE_KEY) || 'light';
 
         function applyTheme(mode) {
             html.setAttribute('data-theme', mode);
-            if (mode === 'auto') {
-                icon.className = 'fas fa-adjust';
-                toggle.title = 'Theme: Auto';
-            } else if (mode === 'light') {
+            if (mode === 'light') {
                 icon.className = 'fas fa-sun';
                 toggle.title = 'Theme: Light';
-            } else {
+            } else if (mode === 'dark') {
                 icon.className = 'fas fa-moon';
                 toggle.title = 'Theme: Dark';
+            } else {
+                icon.className = 'fas fa-star';
+                toggle.title = 'Theme: Midnight';
             }
             localStorage.setItem(STORAGE_KEY, mode);
             current = mode;

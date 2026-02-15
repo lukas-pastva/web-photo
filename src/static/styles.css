@@ -56,35 +56,33 @@
     --category-item-hover: #1f2940;
 }
 
-/* Auto mode: follow system preference */
-@media (prefers-color-scheme: dark) {
-    [data-theme="auto"] {
-        --bg: #1a1a2e;
-        --bg-secondary: #16213e;
-        --bg-card: #1f2940;
-        --text: #e0e0e0;
-        --text-muted: #8899aa;
-        --border: #2a3a5c;
-        --navbar-bg: #0f1629;
-        --navbar-text: #e0e0e0;
-        --brand-bg: #3a7bd5;
-        --brand-text: #ffffff;
-        --tree-bg: #16213e;
-        --tree-hover: #1f2940;
-        --card-shadow: 0 1px 3px rgba(0,0,0,0.3);
-        --input-bg: #1f2940;
-        --input-border: #2a3a5c;
-        --dialog-bg: #1f2940;
-        --log-bg: #0a0d14;
-        --log-text: #c8d8e8;
-        --shimmer-a: rgba(40,50,70,0.9);
-        --shimmer-b: rgba(50,65,90,0.9);
-        --link-color: #5dade2;
-        --upload-zone-bg: #16213e;
-        --upload-zone-border: #3a5080;
-        --category-item-bg: transparent;
-        --category-item-hover: #1f2940;
-    }
+/* Midnight theme - total black with blue accents */
+[data-theme="midnight"] {
+    --bg: #000000;
+    --bg-secondary: #050a14;
+    --bg-card: #0a0f1a;
+    --text: #d0d8e8;
+    --text-muted: #6080a0;
+    --border: #0f1a2e;
+    --navbar-bg: #000000;
+    --navbar-text: #d0d8e8;
+    --brand-bg: #1a6ed8;
+    --brand-text: #ffffff;
+    --tree-bg: #050a14;
+    --tree-hover: #0a1020;
+    --card-shadow: 0 1px 4px rgba(0,80,200,0.15);
+    --input-bg: #0a0f1a;
+    --input-border: #0f1a2e;
+    --dialog-bg: #0a0f1a;
+    --log-bg: #000000;
+    --log-text: #a0b8d0;
+    --shimmer-a: rgba(10,15,30,0.9);
+    --shimmer-b: rgba(15,25,50,0.9);
+    --link-color: #4a9ef5;
+    --upload-zone-bg: #050a14;
+    --upload-zone-border: #1a3060;
+    --category-item-bg: transparent;
+    --category-item-hover: #0a1020;
 }
 
 /* ===== Global ===== */
@@ -558,50 +556,48 @@ video.card-img-top {
     color: var(--text-muted) !important;
 }
 
-/* Auto mode dark overrides */
-@media (prefers-color-scheme: dark) {
-    [data-theme="auto"] .btn-outline-secondary,
-    [data-theme="auto"] .btn-outline-primary,
-    [data-theme="auto"] .btn-outline-info,
-    [data-theme="auto"] .btn-outline-warning,
-    [data-theme="auto"] .btn-outline-danger {
-        border-color: var(--border);
-        color: var(--text);
-    }
+/* ===== Bootstrap overrides for midnight ===== */
+[data-theme="midnight"] .btn-outline-secondary,
+[data-theme="midnight"] .btn-outline-primary,
+[data-theme="midnight"] .btn-outline-info,
+[data-theme="midnight"] .btn-outline-warning,
+[data-theme="midnight"] .btn-outline-danger {
+    border-color: var(--border);
+    color: var(--text);
+}
 
-    [data-theme="auto"] .table {
-        color: var(--text);
-    }
+[data-theme="midnight"] .table {
+    color: var(--text);
+}
 
-    [data-theme="auto"] .table-hover tbody tr:hover {
-        color: var(--text);
-        background-color: var(--tree-hover);
-    }
+[data-theme="midnight"] .table-hover tbody tr:hover {
+    color: var(--text);
+    background-color: var(--tree-hover);
+}
 
-    [data-theme="auto"] .badge-light {
-        background-color: var(--bg-secondary);
-        color: var(--text);
-    }
+[data-theme="midnight"] .badge-light {
+    background-color: var(--bg-secondary);
+    color: var(--text);
+}
 
-    [data-theme="auto"] .alert-success {
-        background-color: #1a3a2a;
-        border-color: #2a5a3a;
-        color: #7dcea0;
-    }
+[data-theme="midnight"] .alert-success {
+    background-color: #0a1a10;
+    border-color: #103020;
+    color: #5dbe80;
+}
 
-    [data-theme="auto"] .alert-danger {
-        background-color: #3a1a1a;
-        border-color: #5a2a2a;
-        color: #e08080;
-    }
+[data-theme="midnight"] .alert-danger {
+    background-color: #1a0a0a;
+    border-color: #301010;
+    color: #d06060;
+}
 
-    [data-theme="auto"] .progress {
-        background-color: var(--bg-secondary);
-    }
+[data-theme="midnight"] .progress {
+    background-color: var(--bg-secondary);
+}
 
-    [data-theme="auto"] .text-muted {
-        color: var(--text-muted) !important;
-    }
+[data-theme="midnight"] .text-muted {
+    color: var(--text-muted) !important;
 }
 
 /* ===== Download overlay ===== */

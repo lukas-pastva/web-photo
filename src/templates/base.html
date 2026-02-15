@@ -147,13 +147,21 @@
             var scale = ZOOM_LEVELS[idx];
             var content = document.getElementById('page-content');
             if (content) {
-                content.style.zoom = scale;
-                content.style.MozTransform = 'scale(' + scale + ')';
-                content.style.MozTransformOrigin = 'top left';
-                if (scale !== 1) {
-                    content.style.width = (100 / scale) + '%';
-                } else {
+                var isHome = !!content.querySelector('.tree-container');
+                if (isHome) {
+                    content.style.zoom = '';
+                    content.style.MozTransform = '';
+                    content.style.MozTransformOrigin = '';
                     content.style.width = '';
+                } else {
+                    content.style.zoom = scale;
+                    content.style.MozTransform = 'scale(' + scale + ')';
+                    content.style.MozTransformOrigin = 'top left';
+                    if (scale !== 1) {
+                        content.style.width = (100 / scale) + '%';
+                    } else {
+                        content.style.width = '';
+                    }
                 }
             }
             document.getElementById('zoom-out').disabled = idx <= 0;

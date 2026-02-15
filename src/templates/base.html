@@ -17,7 +17,7 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <!-- Custom styles -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=9">
 </head>
 <body>
     <nav class="navbar navbar-expand-md">
@@ -136,31 +136,34 @@
     <script>
     (function() {
         var STORAGE_KEY = 'page-zoom';
-        var MIN_ZOOM = 1;
-        var MAX_ZOOM = 4;
-        var DEFAULT_ZOOM = 3;
-        var ZOOM_SCALES = {1: 1.3, 2: 1.15, 3: 1.0, 4: 0.85};
-        var zoom = parseInt(localStorage.getItem(STORAGE_KEY)) || DEFAULT_ZOOM;
-        if (zoom < MIN_ZOOM || zoom > MAX_ZOOM) zoom = DEFAULT_ZOOM;
+        var ZOOM_LEVELS = [0.5, 0.65, 0.8, 1.0, 1.25, 1.5, 1.85];
+        var DEFAULT_IDX = 3;
+        var idx = parseInt(localStorage.getItem(STORAGE_KEY));
+        if (isNaN(idx) || idx < 0 || idx >= ZOOM_LEVELS.length) idx = DEFAULT_IDX;
 
-        function applyZoom(level) {
-            zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, level));
-            localStorage.setItem(STORAGE_KEY, zoom);
+        function applyZoom(i) {
+            idx = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, i));
+            localStorage.setItem(STORAGE_KEY, idx);
+            var scale = ZOOM_LEVELS[idx];
             var content = document.getElementById('page-content');
-            if (content) content.style.zoom = ZOOM_SCALES[zoom] || 1;
-            document.querySelectorAll('.gallery-grid').forEach(function(grid) {
-                grid.setAttribute('data-zoom', zoom);
-            });
-            document.getElementById('zoom-out').disabled = zoom >= MAX_ZOOM;
-            document.getElementById('zoom-in').disabled = zoom <= MIN_ZOOM;
+            if (content) {
+                content.style.zoom = scale;
+                content.style.MozTransform = 'scale(' + scale + ')';
+                content.style.MozTransformOrigin = 'top left';
+                if (scale !== 1) {
+                    content.style.width = (100 / scale) + '%';
+                } else {
+                    content.style.width = '';
+                }
+            }
+            document.getElementById('zoom-out').disabled = idx <= 0;
+            document.getElementById('zoom-in').disabled = idx >= ZOOM_LEVELS.length - 1;
         }
 
-        applyZoom(zoom);
+        applyZoom(idx);
 
-        document.getElementById('zoom-in').addEventListener('click', function() { applyZoom(zoom - 1); });
-        document.getElementById('zoom-out').addEventListener('click', function() { applyZoom(zoom + 1); });
-
-        window.applyPageZoom = function() { applyZoom(zoom); };
+        document.getElementById('zoom-in').addEventListener('click', function() { applyZoom(idx + 1); });
+        document.getElementById('zoom-out').addEventListener('click', function() { applyZoom(idx - 1); });
     })();
     </script>
 </body>

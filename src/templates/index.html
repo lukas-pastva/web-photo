@@ -9,20 +9,94 @@
 <script>
 $(document).ready(function(){
     var treeData = {{ treeData|tojson }};
-    $('#category-tree').treeview({
+    var STORAGE_KEY = 'tree-expanded';
+
+    // Load saved expanded state
+    function getSavedExpanded() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+        catch(e) { return []; }
+    }
+    function saveExpanded(list) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    }
+
+    // Add "Open" button to parent nodes (only if real category exists), mark leaf nodes
+    function prepareNodes(nodes) {
+        nodes.forEach(function(node) {
+            if (node.nodes && node.nodes.length > 0) {
+                var openBtn = '';
+                if (node.isRealCategory) {
+                    openBtn = ' <a href="' + node.href + '" class="btn btn-outline-primary btn-xs tree-open-btn" data-href="' + node.href + '">Open</a>';
+                }
+                node.text = '<span class="tree-node-text">' + node.text + '</span>' + openBtn;
+                node.selectable = true;
+                prepareNodes(node.nodes);
+            } else {
+                node.text = '<span class="tree-node-text">' + node.text + '</span>';
+                node.selectable = true;
+            }
+        });
+    }
+    prepareNodes(treeData);
+
+    // Restore expanded state: mark nodes that should be expanded
+    var savedExpanded = getSavedExpanded();
+    function applyExpandedState(nodes) {
+        nodes.forEach(function(node) {
+            if (node.nodes && node.nodes.length > 0) {
+                if (savedExpanded.indexOf(node.href) !== -1) {
+                    node.state = node.state || {};
+                    node.state.expanded = true;
+                } else {
+                    node.state = node.state || {};
+                    node.state.expanded = false;
+                }
+                applyExpandedState(node.nodes);
+            }
+        });
+    }
+    applyExpandedState(treeData);
+
+    var $tree = $('#category-tree');
+    $tree.treeview({
         data: treeData,
         enableHtml: true,
-        enableLinks: true,
+        enableLinks: false,
         showBorder: false,
         expandIcon: 'fas fa-chevron-right',
         collapseIcon: 'fas fa-chevron-down',
         nodeIcon: 'fas fa-folder',
-        selectedBackColor: '#007bff',
-        selectedColor: '#fff',
-        levels: 99,
+        levels: 1,
         onNodeSelected: function(event, node) {
-            window.location.href = node.href;
+            if (node.nodes && node.nodes.length > 0) {
+                // Parent node: toggle expand/collapse
+                $tree.treeview('toggleNodeExpanded', [node.nodeId, { silent: true }]);
+                $tree.treeview('unselectNode', [node.nodeId, { silent: true }]);
+            } else {
+                // Leaf node: navigate with loader
+                document.getElementById('page-loader').classList.add('active');
+                window.location.href = node.href;
+            }
+        },
+        onNodeExpanded: function(event, node) {
+            var list = getSavedExpanded();
+            if (list.indexOf(node.href) === -1) list.push(node.href);
+            saveExpanded(list);
+        },
+        onNodeCollapsed: function(event, node) {
+            var list = getSavedExpanded();
+            var idx = list.indexOf(node.href);
+            if (idx !== -1) list.splice(idx, 1);
+            saveExpanded(list);
         }
+    });
+
+    // Handle "Open" button clicks on parent nodes
+    $tree.on('click', '.tree-open-btn', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('page-loader').classList.add('active');
+        window.location.href = $(this).data('href');
     });
 });
 </script>

@@ -355,6 +355,7 @@ def process_file(filepath, category):
         logger.error(f"Error processing image {filename}: {str(e)}")
 
 def build_tree_data(categories):
+    category_set = set(categories)
     tree = {}
     for category in categories:
         parts = category.split('-')
@@ -370,7 +371,8 @@ def build_tree_data(categories):
             node = {
                 'text': name,
                 'href': url_for('category_view', category=full_path),
-                'selectable': True
+                'selectable': True,
+                'isRealCategory': full_path in category_set
             }
             if subtree:
                 node['nodes'] = build_nodes(subtree, full_path)

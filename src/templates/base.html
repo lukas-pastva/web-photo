@@ -17,20 +17,19 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <!-- Custom styles -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=7">
 </head>
 <body>
     <nav class="navbar navbar-expand-md">
         <a class="navbar-brand" href="{{ url_for('index') }}">
             <i class="fas fa-home"></i> Photos
         </a>
-        {% block navbar_extra %}{% endblock %}
         <div class="navbar-right-group ml-auto d-flex align-items-center">
             <button class="btn btn-sm theme-toggle" id="theme-toggle" title="Toggle theme">
                 <i class="fas fa-sun" id="theme-icon"></i>
             </button>
             <a class="btn btn-sm btn-outline-secondary ml-2" href="{{ url_for('admin_dashboard') }}">
-                <i class="fas fa-user-shield"></i><span class="d-none d-sm-inline ml-1">Admin</span>
+                <i class="fas fa-cog"></i><span class="d-none d-sm-inline ml-1">Admin</span>
             </a>
         </div>
     </nav>

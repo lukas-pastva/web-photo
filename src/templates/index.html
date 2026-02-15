@@ -3,11 +3,8 @@
 <div class="d-flex align-items-center justify-content-between mb-1">
     <div></div>
     <div class="tree-controls">
-        <button class="btn btn-outline-secondary btn-sm tree-ctrl-btn" id="expand-all" title="Expand all">
-            <i class="fas fa-plus-square"></i>
-        </button>
-        <button class="btn btn-outline-secondary btn-sm tree-ctrl-btn" id="collapse-all" title="Collapse all">
-            <i class="fas fa-minus-square"></i>
+        <button class="btn btn-outline-secondary btn-sm tree-ctrl-btn" id="toggle-tree" title="Expand all">
+            <i class="fas fa-angle-double-down" id="toggle-tree-icon"></i>
         </button>
     </div>
 </div>
@@ -114,23 +111,38 @@ $(document).ready(function(){
         window.location.href = $(this).data('href');
     });
 
-    // Expand all / Collapse all
-    $('#expand-all').on('click', function() {
-        $tree.treeview('expandAll', { silent: true });
-        // Save all parent hrefs
-        var allNodes = $tree.treeview('getEnabled');
-        var list = [];
-        allNodes.forEach(function(node) {
-            if (node.nodes && node.nodes.length > 0 && node.href) {
-                list.push(node.href);
-            }
-        });
-        saveExpanded(list);
-    });
+    // Toggle expand/collapse all
+    var treeExpanded = false;
+    var $toggleBtn = $('#toggle-tree');
+    var $toggleIcon = $('#toggle-tree-icon');
 
-    $('#collapse-all').on('click', function() {
-        $tree.treeview('collapseAll', { silent: true });
-        saveExpanded([]);
+    function updateToggleIcon() {
+        if (treeExpanded) {
+            $toggleIcon.attr('class', 'fas fa-angle-double-up');
+            $toggleBtn.attr('title', 'Collapse all');
+        } else {
+            $toggleIcon.attr('class', 'fas fa-angle-double-down');
+            $toggleBtn.attr('title', 'Expand all');
+        }
+    }
+
+    $toggleBtn.on('click', function() {
+        if (treeExpanded) {
+            $tree.treeview('collapseAll', { silent: true });
+            saveExpanded([]);
+        } else {
+            $tree.treeview('expandAll', { silent: true });
+            var allNodes = $tree.treeview('getEnabled');
+            var list = [];
+            allNodes.forEach(function(node) {
+                if (node.nodes && node.nodes.length > 0 && node.href) {
+                    list.push(node.href);
+                }
+            });
+            saveExpanded(list);
+        }
+        treeExpanded = !treeExpanded;
+        updateToggleIcon();
     });
 });
 </script>

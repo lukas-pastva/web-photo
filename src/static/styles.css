@@ -116,42 +116,6 @@ a:hover { color: var(--link-color); opacity: 0.85; }
 .navbar-brand:hover { opacity: 0.9; }
 .navbar-brand i { margin-right: 0.25rem; }
 
-/* ===== Navbar category controls ===== */
-.navbar-category-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    margin-left: 0.75rem;
-    flex: 1;
-    min-width: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-}
-.navbar-category-controls::-webkit-scrollbar { display: none; }
-
-.navbar-category-name {
-    font-weight: 600;
-    font-size: 0.85rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 160px;
-    color: var(--text);
-}
-
-.navbar-ctrl-btn {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.4rem;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-/* ===== Zoom wrapper (page-level zoom) ===== */
-#zoom-wrapper {
-    transform-origin: top left;
-}
-
 .theme-toggle {
     background: none;
     border: 1px solid var(--border);
@@ -747,22 +711,11 @@ video.card-img-top {
 @media (max-width: 575.98px) {
     .navbar {
         padding: 0.3rem 0.5rem;
-        flex-wrap: nowrap;
     }
 
     .navbar-brand {
         font-size: 0.85rem;
         padding: 0.25rem 0.5rem;
-    }
-
-    .navbar-category-name {
-        max-width: 80px;
-        font-size: 0.75rem;
-    }
-
-    .navbar-ctrl-btn {
-        font-size: 0.6rem;
-        padding: 0.15rem 0.3rem;
     }
 
     .category-header h5 {

@@ -43,7 +43,9 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key')
 # Ensure the upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-ALLOWED_EXTENSIONS = {'heic', 'jpg', 'jpeg', 'png', 'gif', 'bmp', 'mp4', 'mov', 'avi', 'mkv', 'm4v'}
+IMAGE_EXTENSIONS = {'.heic', '.heif', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.dng', '.tiff', '.tif'}
+VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.m4v', '.3gp'}
+ALLOWED_EXTENSIONS = {e.lstrip('.') for e in IMAGE_EXTENSIONS | VIDEO_EXTENSIONS}
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -61,8 +63,6 @@ def _list_categories():
 
 def _category_counts(categories):
     """Return dict mapping category name to photo and video counts."""
-    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'}
-    video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
     base = app.config['UPLOAD_FOLDER']
     counts = {}
     for cat in categories:
@@ -71,12 +71,12 @@ def _category_counts(categories):
         largest_dir = os.path.join(base, cat, 'largest')
         if os.path.isdir(largest_dir):
             for f in os.listdir(largest_dir):
-                if os.path.splitext(f)[1].lower() in image_extensions:
+                if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS:
                     photos += 1
         source_dir = os.path.join(base, cat, 'source')
         if os.path.isdir(source_dir):
             for f in os.listdir(source_dir):
-                if os.path.splitext(f)[1].lower() in video_extensions:
+                if os.path.splitext(f)[1].lower() in VIDEO_EXTENSIONS:
                     videos += 1
         counts[cat] = {'photos': photos, 'videos': videos}
     return counts
@@ -180,30 +180,27 @@ def process_file(filepath, category):
     name, ext = os.path.splitext(filename)
     ext = ext.lower()
 
-    image_extensions = {'.heic', '.jpg', '.jpeg', '.png', '.gif', '.bmp'}
-    video_extensions = {'.mp4', '.mov', '.avi', '.mkv', '.m4v'}
-
-    if ext not in image_extensions and ext not in video_extensions:
+    if ext not in IMAGE_EXTENSIONS and ext not in VIDEO_EXTENSIONS:
         logger.warning(f"Unsupported file type: {filename}")
         return
 
-    if ext in video_extensions:
+    if ext in VIDEO_EXTENSIONS:
         thumb_source_path = filepath
         if ext == '.m4v':
             source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
             mp4_filename = f"{name}.mp4"
             mp4_filepath = os.path.join(source_dir, mp4_filename)
             try:
-                logger.info(f"Converting {filename} to {mp4_filename}")
+                logger.info(f"Remuxing {filename} to {mp4_filename}")
                 (
                     ffmpeg
                     .input(filepath)
-                    .output(mp4_filepath, vcodec='libx264', acodec='aac', strict='experimental')
+                    .output(mp4_filepath, codec='copy')
                     .overwrite_output()
                     .run()
                 )
                 os.remove(filepath)
-                logger.info(f"Successfully converted {filename} to {mp4_filename}")
+                logger.info(f"Successfully remuxed {filename} to {mp4_filename}")
                 thumb_source_path = mp4_filepath
             except ffmpeg.Error as e:
                 logger.error(f"Error converting {filename}: {e.stderr.decode()}")
@@ -232,8 +229,8 @@ def process_file(filepath, category):
     try:
         exif_bytes = b''
 
-        if ext == '.heic':
-            logger.info(f"Processing HEIC image: {filename}")
+        if ext in ('.heic', '.heif'):
+            logger.info(f"Processing HEIC/HEIF image: {filename}")
             heif_file = pyheif.read(filepath)
             image = Image.frombytes(
                 heif_file.mode,
@@ -430,8 +427,6 @@ def scan_duplicates():
             c for c in os.listdir(base)
             if os.path.isdir(os.path.join(base, c)) and not c.startswith('.')
         )
-        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'}
-        video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
         total_cats = len(categories)
 
         yield f"data: {json.dumps({'type': 'log', 'message': f'Starting scan across {total_cats} categories...'})}\n\n"
@@ -457,11 +452,11 @@ def scan_duplicates():
                 name = os.path.splitext(fname)[0]
                 ext_lower = os.path.splitext(fname)[1].lower()
                 thumb_url = None
-                if ext_lower in image_extensions:
+                if ext_lower in IMAGE_EXTENSIONS:
                     thumb_rel = os.path.join(cat, 'thumbnail', name + '.jpeg')
                     if os.path.exists(os.path.join(base, thumb_rel)):
                         thumb_url = url_for('uploaded_file', filename=thumb_rel)
-                elif ext_lower in video_extensions:
+                elif ext_lower in VIDEO_EXTENSIONS:
                     thumb_rel = os.path.join(cat, 'video_thumbnail', name + '.jpeg')
                     if os.path.exists(os.path.join(base, thumb_rel)):
                         thumb_url = url_for('uploaded_file', filename=thumb_rel)
@@ -533,8 +528,6 @@ def category_view(category):
 
     images = []
     videos = []
-    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.heic'}
-    video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
 
     if os.path.exists(dimensions_path):
         with open(dimensions_path, 'r') as f:
@@ -547,7 +540,7 @@ def category_view(category):
         for file in image_files:
             name, ext = os.path.splitext(file)
             ext = ext.lower()
-            if ext in image_extensions:
+            if ext in IMAGE_EXTENSIONS:
                 width = all_dimensions.get(name, {}).get('largest', {}).get('width')
                 height = all_dimensions.get(name, {}).get('largest', {}).get('height')
                 if width is None or height is None:
@@ -574,7 +567,7 @@ def category_view(category):
         for file in video_files:
             name, ext = os.path.splitext(file)
             ext = ext.lower()
-            if ext in video_extensions:
+            if ext in VIDEO_EXTENSIONS:
                 poster_rel = os.path.join(category, 'video_thumbnail', f'{name}.jpeg')
                 poster_abs = os.path.join(app.config['UPLOAD_FOLDER'], poster_rel)
                 if os.path.exists(poster_abs):
@@ -660,8 +653,7 @@ def download_category(category):
     if not os.path.exists(images_dir):
         return jsonify({'status': 'fail', 'message': 'Size not found.'}), 404
 
-    video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
-    image_filenames = [f for f in os.listdir(images_dir) if os.path.splitext(f)[1].lower() not in video_extensions]
+    image_filenames = [f for f in os.listdir(images_dir) if os.path.splitext(f)[1].lower() not in VIDEO_EXTENSIONS]
     image_paths = [os.path.join(images_dir, filename) for filename in image_filenames]
 
     if not image_filenames:
@@ -676,12 +668,11 @@ def download_category(category):
 
 @app.route('/download_videos/<category>')
 def download_videos(category):
-    video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
     source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
     if not os.path.exists(source_dir):
         return jsonify({'status': 'fail', 'message': 'Category not found.'}), 404
 
-    video_filenames = [f for f in os.listdir(source_dir) if os.path.splitext(f)[1].lower() in video_extensions]
+    video_filenames = [f for f in os.listdir(source_dir) if os.path.splitext(f)[1].lower() in VIDEO_EXTENSIONS]
     video_paths = [os.path.join(source_dir, f) for f in video_filenames]
 
     if not video_filenames:
@@ -710,8 +701,7 @@ def delete_photo(category, filename):
                 messages.append(f'Error deleting {size} version: {str(e)}')
 
     name, ext = os.path.splitext(filename)
-    video_extensions = {'.mp4', '.mov', '.avi', '.mkv'}
-    if ext.lower() in video_extensions:
+    if ext.lower() in VIDEO_EXTENSIONS:
         poster_path = os.path.join(app.config['UPLOAD_FOLDER'], category, 'video_thumbnail', f'{name}.jpeg')
         if os.path.exists(poster_path):
             try:

@@ -1,5 +1,16 @@
 {% extends 'base.html' %}
 {% block content %}
+<div class="d-flex align-items-center justify-content-between mb-1">
+    <div></div>
+    <div class="tree-controls">
+        <button class="btn btn-outline-secondary btn-sm tree-ctrl-btn" id="expand-all" title="Expand all">
+            <i class="fas fa-plus-square"></i>
+        </button>
+        <button class="btn btn-outline-secondary btn-sm tree-ctrl-btn" id="collapse-all" title="Collapse all">
+            <i class="fas fa-minus-square"></i>
+        </button>
+    </div>
+</div>
 <div class="tree-container">
     <div id="category-tree"></div>
 </div>
@@ -10,8 +21,9 @@
 $(document).ready(function(){
     var treeData = {{ treeData|tojson }};
     var STORAGE_KEY = 'tree-expanded';
+    var saving = true;
 
-    // Load saved expanded state
+    // Load/save expanded state
     function getSavedExpanded() {
         try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
         catch(e) { return []; }
@@ -20,7 +32,7 @@ $(document).ready(function(){
         localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     }
 
-    // Add "Open" button to parent nodes (only if real category exists), mark leaf nodes
+    // Add "Open" button to parent nodes (only if real category exists)
     function prepareNodes(nodes) {
         nodes.forEach(function(node) {
             if (node.nodes && node.nodes.length > 0) {
@@ -39,25 +51,10 @@ $(document).ready(function(){
     }
     prepareNodes(treeData);
 
-    // Restore expanded state: mark nodes that should be expanded
-    var savedExpanded = getSavedExpanded();
-    function applyExpandedState(nodes) {
-        nodes.forEach(function(node) {
-            if (node.nodes && node.nodes.length > 0) {
-                if (savedExpanded.indexOf(node.href) !== -1) {
-                    node.state = node.state || {};
-                    node.state.expanded = true;
-                } else {
-                    node.state = node.state || {};
-                    node.state.expanded = false;
-                }
-                applyExpandedState(node.nodes);
-            }
-        });
-    }
-    applyExpandedState(treeData);
-
     var $tree = $('#category-tree');
+
+    // Init tree collapsed, we expand saved nodes after
+    saving = false;
     $tree.treeview({
         data: treeData,
         enableHtml: true,
@@ -70,7 +67,7 @@ $(document).ready(function(){
         onNodeSelected: function(event, node) {
             if (node.nodes && node.nodes.length > 0) {
                 // Parent node: toggle expand/collapse
-                $tree.treeview('toggleNodeExpanded', [node.nodeId, { silent: true }]);
+                $tree.treeview('toggleNodeExpanded', [node.nodeId]);
                 $tree.treeview('unselectNode', [node.nodeId, { silent: true }]);
             } else {
                 // Leaf node: navigate with loader
@@ -79,11 +76,13 @@ $(document).ready(function(){
             }
         },
         onNodeExpanded: function(event, node) {
+            if (!saving) return;
             var list = getSavedExpanded();
             if (list.indexOf(node.href) === -1) list.push(node.href);
             saveExpanded(list);
         },
         onNodeCollapsed: function(event, node) {
+            if (!saving) return;
             var list = getSavedExpanded();
             var idx = list.indexOf(node.href);
             if (idx !== -1) list.splice(idx, 1);
@@ -91,12 +90,47 @@ $(document).ready(function(){
         }
     });
 
+    // Restore saved expanded state after init
+    var savedExpanded = getSavedExpanded();
+    if (savedExpanded.length > 0) {
+        // Collapse everything first (levels:1 may have expanded root)
+        $tree.treeview('collapseAll', { silent: true });
+
+        // Find and expand saved nodes
+        var allNodes = $tree.treeview('getEnabled');
+        allNodes.forEach(function(node) {
+            if (node.href && savedExpanded.indexOf(node.href) !== -1) {
+                $tree.treeview('expandNode', [node.nodeId, { silent: true }]);
+            }
+        });
+    }
+    saving = true;
+
     // Handle "Open" button clicks on parent nodes
     $tree.on('click', '.tree-open-btn', function(e) {
         e.preventDefault();
         e.stopPropagation();
         document.getElementById('page-loader').classList.add('active');
         window.location.href = $(this).data('href');
+    });
+
+    // Expand all / Collapse all
+    $('#expand-all').on('click', function() {
+        $tree.treeview('expandAll', { silent: true });
+        // Save all parent hrefs
+        var allNodes = $tree.treeview('getEnabled');
+        var list = [];
+        allNodes.forEach(function(node) {
+            if (node.nodes && node.nodes.length > 0 && node.href) {
+                list.push(node.href);
+            }
+        });
+        saveExpanded(list);
+    });
+
+    $('#collapse-all').on('click', function() {
+        $tree.treeview('collapseAll', { silent: true });
+        saveExpanded([]);
     });
 });
 </script>

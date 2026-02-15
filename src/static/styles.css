@@ -664,6 +664,25 @@ video.card-img-top {
     vertical-align: middle;
 }
 
+/* ===== Tree controls (expand/collapse all) ===== */
+.tree-controls {
+    display: flex;
+    gap: 0.25rem;
+}
+.tree-ctrl-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    opacity: 0.6;
+}
+.tree-ctrl-btn:hover {
+    opacity: 1;
+}
+
 /* ===== Floating scroll button ===== */
 .scroll-fab {
     position: fixed;

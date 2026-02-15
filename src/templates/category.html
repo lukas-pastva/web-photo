@@ -294,15 +294,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Download overlay
+    // Download overlay with fetch
     var overlay = document.getElementById('download-overlay');
     var overlayText = document.getElementById('download-overlay-text');
     document.querySelectorAll('.download-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            overlayText.textContent = 'Preparing ' + btn.title.toLowerCase() + ' download...';
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var url = btn.href;
+            var label = btn.title.toLowerCase();
+            overlayText.textContent = 'Preparing ' + label + ' download...';
             overlay.classList.add('active');
-            // Hide overlay after a delay — browser starts download in background
-            setTimeout(function() { overlay.classList.remove('active'); }, 5000);
+
+            fetch(url)
+                .then(function(resp) {
+                    if (!resp.ok) throw new Error('Download failed');
+                    var disposition = resp.headers.get('Content-Disposition') || '';
+                    var match = disposition.match(/filename="?([^";\n]+)"?/);
+                    var filename = match ? match[1] : label + '.zip';
+                    return resp.blob().then(function(blob) { return { blob: blob, filename: filename }; });
+                })
+                .then(function(result) {
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(result.blob);
+                    a.download = result.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(a.href);
+                    overlay.classList.remove('active');
+                })
+                .catch(function() {
+                    overlayText.textContent = 'Download failed.';
+                    setTimeout(function() { overlay.classList.remove('active'); }, 2000);
+                });
         });
     });
 

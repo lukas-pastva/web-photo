@@ -562,6 +562,9 @@ def category_view(category):
                     'meta': photo_meta,
                 })
 
+        # Sort images by EXIF date (newest first); photos without date go to the end
+        images.sort(key=lambda img: img['meta'].get('date', ''), reverse=True)
+
     if os.path.exists(source_dir):
         video_files = os.listdir(source_dir)
         for file in video_files:

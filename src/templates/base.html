@@ -68,6 +68,15 @@
     {% block scripts %}{% endblock %}
 
     <script>
+    // Hide the page loader when navigating back via browser history (bfcache)
+    window.addEventListener('pageshow', function(event) {
+        if (event.persisted) {
+            document.getElementById('page-loader').classList.remove('active');
+        }
+    });
+    </script>
+
+    <script>
     (function() {
         var fab = document.getElementById('scroll-fab');
         var fabIcon = document.getElementById('scroll-fab-icon');

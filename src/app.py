@@ -621,6 +621,47 @@ def delete_category(category):
         else:
             return redirect(url_for('index'))
 
+@app.route('/category/rename', methods=['POST'])
+def rename_category():
+    data = request.get_json(silent=True) or {}
+    old_name = data.get('old_name', '').strip()
+    new_name = data.get('new_name', '').strip()
+    if not old_name or not new_name:
+        return jsonify({'status': 'fail', 'message': 'Both old and new names are required.'}), 400
+    new_name = secure_filename(new_name)
+    if not new_name:
+        return jsonify({'status': 'fail', 'message': 'Invalid new name.'}), 400
+    if old_name == new_name:
+        return jsonify({'status': 'fail', 'message': 'New name is the same as the old name.'}), 400
+    base = app.config['UPLOAD_FOLDER']
+    old_path = os.path.join(base, old_name)
+    new_path = os.path.join(base, new_name)
+    if not os.path.isdir(old_path):
+        return jsonify({'status': 'fail', 'message': 'Category does not exist.'}), 404
+    if os.path.exists(new_path):
+        return jsonify({'status': 'fail', 'message': f"Category '{new_name}' already exists."}), 409
+    try:
+        # Collect child categories (dirs starting with old_name-)
+        children = sorted(
+            c for c in os.listdir(base)
+            if os.path.isdir(os.path.join(base, c)) and c.startswith(old_name + '-')
+        )
+        # Rename the category itself
+        os.rename(old_path, new_path)
+        # Rename children
+        renamed = [{'old': old_name, 'new': new_name}]
+        for child in children:
+            child_new = new_name + child[len(old_name):]
+            child_old_path = os.path.join(base, child)
+            child_new_path = os.path.join(base, child_new)
+            if os.path.isdir(child_old_path) and not os.path.exists(child_new_path):
+                os.rename(child_old_path, child_new_path)
+                renamed.append({'old': child, 'new': child_new})
+        return jsonify({'status': 'success', 'message': f"Renamed '{old_name}' to '{new_name}'.", 'renamed': renamed})
+    except Exception as e:
+        return jsonify({'status': 'fail', 'message': f"Error renaming category: {str(e)}"}), 500
+
+
 @app.route('/upload/<category>', methods=['GET', 'POST'])
 def upload_file(category):
     if request.method == 'POST':

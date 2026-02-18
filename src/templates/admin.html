@@ -44,6 +44,9 @@
                         <div class="d-flex align-items-center category-admin-actions">
                             <span class="badge badge-light mr-1 cat-badge" data-cat="{{ cat }}" data-type="photos" title="Photos"><i class="fas fa-image"></i> <span class="cnt"><i class="fas fa-spinner fa-spin" style="font-size:0.55rem"></i></span></span>
                             <span class="badge badge-light mr-2 cat-badge" data-cat="{{ cat }}" data-type="videos" title="Videos"><i class="fas fa-video"></i> <span class="cnt"><i class="fas fa-spinner fa-spin" style="font-size:0.55rem"></i></span></span>
+                            <button class="btn btn-outline-secondary btn-sm rename-category-btn mr-1" data-category="{{ cat }}" title="Rename">
+                                <i class="fas fa-pen"></i>
+                            </button>
                             <button class="btn btn-outline-danger btn-sm delete-category-btn" data-category="{{ cat }}" title="Delete">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
@@ -90,6 +93,18 @@
     </div>
 </div>
 
+<!-- Rename category dialog -->
+<dialog id="rename-category-dialog" class="delete-dialog">
+    <form method="dialog">
+        <p class="mb-2">Rename category</p>
+        <input type="text" id="rename-category-input" class="form-control form-control-sm mb-2" placeholder="New name">
+        <div class="dialog-actions">
+            <button value="cancel" class="btn btn-sm btn-secondary">Cancel</button>
+            <button id="confirm-rename-category" value="default" class="btn btn-sm btn-primary">Rename</button>
+        </div>
+    </form>
+</dialog>
+
 <!-- Delete category confirmation -->
 <dialog id="delete-category-dialog" class="delete-dialog">
     <form method="dialog">
@@ -108,6 +123,7 @@ const routes = {
     dupDelete: "{{ url_for('delete_duplicate') }}",
 };
 const deleteCategoryRouteTemplate = "{{ url_for('delete_category', category='CATEGORY_PLACEHOLDER') }}";
+const renameCategoryRoute = "{{ url_for('rename_category') }}";
 
 /* ===== Category counts (async) ===== */
 let catCounts = {};
@@ -194,6 +210,66 @@ let catCounts = {};
         })
         .catch(function() {
             alert('Error deleting category.');
+            dialog.close();
+        });
+    });
+})();
+
+/* ===== Category rename handling ===== */
+(function() {
+    const dialog = document.getElementById('rename-category-dialog');
+    const input = document.getElementById('rename-category-input');
+    const confirmBtn = document.getElementById('confirm-rename-category');
+    let pendingCategory = null;
+
+    document.querySelectorAll('.rename-category-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            pendingCategory = this.dataset.category;
+            input.value = pendingCategory;
+            dialog.showModal();
+            input.select();
+        });
+    });
+
+    confirmBtn.addEventListener('click', function() {
+        if (!pendingCategory) return;
+        var newName = input.value.trim();
+        if (!newName || newName === pendingCategory) { dialog.close(); return; }
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        fetch(renameCategoryRoute, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({old_name: pendingCategory, new_name: newName})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                (data.renamed || []).forEach(function(r) {
+                    var item = document.querySelector('.category-admin-item[data-category="' + r.old + '"]');
+                    if (!item) return;
+                    item.dataset.category = r.new;
+                    var link = item.querySelector('.category-admin-link');
+                    if (link) { link.textContent = r.new; link.href = '/category/' + r.new; }
+                    item.querySelectorAll('.cat-badge').forEach(function(b) { b.dataset.cat = r.new; });
+                    var renameBtn = item.querySelector('.rename-category-btn');
+                    if (renameBtn) renameBtn.dataset.category = r.new;
+                    var deleteBtn = item.querySelector('.delete-category-btn');
+                    if (deleteBtn) deleteBtn.dataset.category = r.new;
+                });
+            } else {
+                alert(data.message || 'Failed to rename category.');
+            }
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Rename';
+            dialog.close();
+        })
+        .catch(function() {
+            alert('Error renaming category.');
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Rename';
             dialog.close();
         });
     });

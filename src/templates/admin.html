@@ -47,6 +47,9 @@
                             <button class="btn btn-outline-secondary btn-sm rename-category-btn mr-1" data-category="{{ cat }}" title="Rename">
                                 <i class="fas fa-pen"></i>
                             </button>
+                            <button class="btn btn-outline-secondary btn-sm move-category-btn mr-1" data-category="{{ cat }}" title="Move">
+                                <i class="fas fa-arrows-alt"></i>
+                            </button>
                             <button class="btn btn-outline-danger btn-sm delete-category-btn" data-category="{{ cat }}" title="Delete">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
@@ -116,6 +119,26 @@
     </form>
 </dialog>
 
+<!-- Move category dialog -->
+<dialog id="move-category-dialog" class="delete-dialog">
+    <form method="dialog">
+        <p class="mb-1">Move category</p>
+        <p id="move-category-name" class="small font-weight-bold mb-2"></p>
+        <label class="small" for="move-parent-select">New parent</label>
+        <select id="move-parent-select" class="form-control form-control-sm mb-2">
+            <option value="">Root (top level)</option>
+            {% for opt in parent_options %}
+            <option value="{{ opt.path }}">{{ opt.label }}</option>
+            {% endfor %}
+        </select>
+        <div id="move-preview" class="small text-muted mb-2"></div>
+        <div class="dialog-actions">
+            <button value="cancel" class="btn btn-sm btn-secondary">Cancel</button>
+            <button id="confirm-move-category" value="default" class="btn btn-sm btn-primary">Move</button>
+        </div>
+    </form>
+</dialog>
+
 <script>
 const routes = {
     categoryCounts: "{{ url_for('category_counts_api') }}",
@@ -124,6 +147,7 @@ const routes = {
 };
 const deleteCategoryRouteTemplate = "{{ url_for('delete_category', category='CATEGORY_PLACEHOLDER') }}";
 const renameCategoryRoute = "{{ url_for('rename_category') }}";
+const moveCategoryRoute = "{{ url_for('move_category') }}";
 
 /* ===== Category counts (async) ===== */
 let catCounts = {};
@@ -254,10 +278,9 @@ let catCounts = {};
                     var link = item.querySelector('.category-admin-link');
                     if (link) { link.textContent = r.new; link.href = '/category/' + r.new; }
                     item.querySelectorAll('.cat-badge').forEach(function(b) { b.dataset.cat = r.new; });
-                    var renameBtn = item.querySelector('.rename-category-btn');
-                    if (renameBtn) renameBtn.dataset.category = r.new;
-                    var deleteBtn = item.querySelector('.delete-category-btn');
-                    if (deleteBtn) deleteBtn.dataset.category = r.new;
+                    item.querySelectorAll('.rename-category-btn, .move-category-btn, .delete-category-btn').forEach(function(b) {
+                        b.dataset.category = r.new;
+                    });
                 });
             } else {
                 alert(data.message || 'Failed to rename category.');
@@ -270,6 +293,102 @@ let catCounts = {};
             alert('Error renaming category.');
             confirmBtn.disabled = false;
             confirmBtn.innerHTML = 'Rename';
+            dialog.close();
+        });
+    });
+})();
+
+/* ===== Category move handling ===== */
+(function() {
+    const dialog = document.getElementById('move-category-dialog');
+    const nameEl = document.getElementById('move-category-name');
+    const parentSelect = document.getElementById('move-parent-select');
+    const previewEl = document.getElementById('move-preview');
+    const confirmBtn = document.getElementById('confirm-move-category');
+    let pendingCategory = null;
+
+    function getLeaf(cat) {
+        var parts = cat.split('-');
+        return parts[parts.length - 1];
+    }
+
+    function filterOptions() {
+        var options = parentSelect.querySelectorAll('option');
+        options.forEach(function(opt) {
+            if (!opt.value) { opt.disabled = false; return; }
+            opt.disabled = (opt.value === pendingCategory || opt.value.startsWith(pendingCategory + '-'));
+        });
+    }
+
+    function updatePreview() {
+        if (!pendingCategory) return;
+        var parent = parentSelect.value;
+        var leaf = getLeaf(pendingCategory);
+        var newName = parent ? parent + '-' + leaf : leaf;
+        if (newName === pendingCategory) {
+            previewEl.textContent = '(no change)';
+        } else {
+            previewEl.textContent = 'New name: ' + newName;
+        }
+    }
+
+    document.querySelectorAll('.move-category-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            pendingCategory = this.dataset.category;
+            nameEl.textContent = pendingCategory;
+            // Reset selection to current parent
+            var parts = pendingCategory.split('-');
+            parts.pop();
+            var currentParent = parts.join('-');
+            parentSelect.value = currentParent;
+            filterOptions();
+            updatePreview();
+            dialog.showModal();
+        });
+    });
+
+    parentSelect.addEventListener('change', updatePreview);
+
+    confirmBtn.addEventListener('click', function() {
+        if (!pendingCategory) return;
+        var newParent = parentSelect.value;
+        var leaf = getLeaf(pendingCategory);
+        var newName = newParent ? newParent + '-' + leaf : leaf;
+        if (newName === pendingCategory) { dialog.close(); return; }
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        fetch(moveCategoryRoute, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({category: pendingCategory, new_parent: newParent})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success') {
+                (data.renamed || []).forEach(function(r) {
+                    var item = document.querySelector('.category-admin-item[data-category="' + r.old + '"]');
+                    if (!item) return;
+                    item.dataset.category = r.new;
+                    var link = item.querySelector('.category-admin-link');
+                    if (link) { link.textContent = r.new; link.href = '/category/' + r.new; }
+                    item.querySelectorAll('.cat-badge').forEach(function(b) { b.dataset.cat = r.new; });
+                    item.querySelectorAll('.rename-category-btn, .move-category-btn, .delete-category-btn').forEach(function(b) {
+                        b.dataset.category = r.new;
+                    });
+                });
+            } else {
+                alert(data.message || 'Failed to move category.');
+            }
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Move';
+            dialog.close();
+        })
+        .catch(function() {
+            alert('Error moving category.');
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Move';
             dialog.close();
         });
     });

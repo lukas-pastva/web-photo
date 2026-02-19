@@ -662,6 +662,57 @@ def rename_category():
         return jsonify({'status': 'fail', 'message': f"Error renaming category: {str(e)}"}), 500
 
 
+@app.route('/category/move', methods=['POST'])
+def move_category():
+    data = request.get_json(silent=True) or {}
+    category = data.get('category', '').strip()
+    new_parent = data.get('new_parent', '').strip()
+    if not category:
+        return jsonify({'status': 'fail', 'message': 'Category name is required.'}), 400
+    base = app.config['UPLOAD_FOLDER']
+    # Validate source exists
+    if not os.path.isdir(os.path.join(base, category)):
+        return jsonify({'status': 'fail', 'message': 'Category does not exist.'}), 404
+    # Validate new_parent exists (if non-empty)
+    if new_parent and not os.path.isdir(os.path.join(base, new_parent)):
+        return jsonify({'status': 'fail', 'message': f"Parent category '{new_parent}' does not exist."}), 404
+    # Cannot move into itself or its own descendant
+    if new_parent == category or new_parent.startswith(category + '-'):
+        return jsonify({'status': 'fail', 'message': 'Cannot move a category into itself or its own descendant.'}), 400
+    # Extract leaf name and compute new name
+    leaf = category.rsplit('-', 1)[-1]
+    new_name = new_parent + '-' + leaf if new_parent else leaf
+    # No-op check
+    if new_name == category:
+        return jsonify({'status': 'fail', 'message': 'Category is already in that location.'}), 400
+    # Destination must not exist
+    if os.path.exists(os.path.join(base, new_name)):
+        return jsonify({'status': 'fail', 'message': f"Category '{new_name}' already exists."}), 409
+    # Collect children
+    children = sorted(
+        c for c in os.listdir(base)
+        if os.path.isdir(os.path.join(base, c)) and c.startswith(category + '-')
+    )
+    # Pre-check all child renames for conflicts
+    for child in children:
+        child_new = new_name + child[len(category):]
+        if os.path.exists(os.path.join(base, child_new)):
+            return jsonify({'status': 'fail', 'message': f"Cannot move: '{child_new}' already exists."}), 409
+    try:
+        os.rename(os.path.join(base, category), os.path.join(base, new_name))
+        renamed = [{'old': category, 'new': new_name}]
+        for child in children:
+            child_new = new_name + child[len(category):]
+            child_old_path = os.path.join(base, child)
+            child_new_path = os.path.join(base, child_new)
+            if os.path.isdir(child_old_path) and not os.path.exists(child_new_path):
+                os.rename(child_old_path, child_new_path)
+                renamed.append({'old': child, 'new': child_new})
+        return jsonify({'status': 'success', 'message': f"Moved '{category}' to '{new_name}'.", 'renamed': renamed})
+    except Exception as e:
+        return jsonify({'status': 'fail', 'message': f"Error moving category: {str(e)}"}), 500
+
+
 @app.route('/upload/<category>', methods=['GET', 'POST'])
 def upload_file(category):
     if request.method == 'POST':

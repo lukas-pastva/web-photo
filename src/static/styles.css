@@ -675,12 +675,11 @@ video.card-img-top {
     vertical-align: middle;
 }
 
-/* ===== Navbar search group (index page) ===== */
-.navbar-search-group {
-    flex: 1;
-    max-width: 260px;
-    margin-left: 0.5rem;
-    margin-right: 0.5rem;
+/* ===== Search bar below navbar (index page) ===== */
+.tree-search-bar {
+    padding: 0.4rem 0.75rem;
+    background-color: var(--nav-bg);
+    border-bottom: 1px solid var(--border);
 }
 
 /* ===== Tree search ===== */

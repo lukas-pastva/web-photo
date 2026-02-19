@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
-{% block content %}
-<div class="d-flex align-items-center justify-content-between mb-1">
+{% block navbar_extra %}
+<div class="navbar-search-group d-flex align-items-center">
     <div class="tree-search-wrap">
         <i class="fas fa-search tree-search-icon"></i>
-        <input type="text" id="tree-search" class="form-control form-control-sm tree-search-input" placeholder="Filter albums...">
+        <input type="text" id="tree-search" class="form-control form-control-sm tree-search-input" placeholder="Filter...">
     </div>
-    <div class="tree-controls">
-        <button class="btn btn-outline-secondary btn-sm tree-ctrl-btn" id="toggle-tree" title="Expand all">
-            <i class="fas fa-angle-double-down" id="toggle-tree-icon"></i>
-        </button>
-    </div>
+    <button class="btn btn-outline-secondary btn-sm tree-ctrl-btn ml-1" id="toggle-tree" title="Expand all">
+        <i class="fas fa-angle-double-down" id="toggle-tree-icon"></i>
+    </button>
 </div>
+{% endblock %}
+{% block content %}
 <div class="tree-container">
     <div id="category-tree"></div>
 </div>

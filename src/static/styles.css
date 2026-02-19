@@ -675,11 +675,19 @@ video.card-img-top {
     vertical-align: middle;
 }
 
+/* ===== Navbar search group (index page) ===== */
+.navbar-search-group {
+    flex: 1;
+    max-width: 260px;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+}
+
 /* ===== Tree search ===== */
 .tree-search-wrap {
     position: relative;
     flex: 1;
-    max-width: 260px;
+    min-width: 0;
 }
 .tree-search-icon {
     position: absolute;
@@ -697,10 +705,6 @@ video.card-img-top {
 }
 
 /* ===== Tree controls (expand/collapse all) ===== */
-.tree-controls {
-    display: flex;
-    gap: 0.25rem;
-}
 .tree-ctrl-btn {
     width: 32px;
     height: 32px;
@@ -710,6 +714,7 @@ video.card-img-top {
     justify-content: center;
     font-size: 0.85rem;
     opacity: 0.6;
+    flex-shrink: 0;
 }
 .tree-ctrl-btn:hover {
     opacity: 1;
@@ -747,11 +752,54 @@ video.card-img-top {
 @media (max-width: 575.98px) {
     .navbar {
         padding: 0.3rem 0.5rem;
+        flex-wrap: nowrap;
     }
 
     .navbar-brand {
         font-size: 0.85rem;
         padding: 0.25rem 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .navbar-search-group {
+        max-width: none;
+        margin-left: 0.35rem;
+        margin-right: 0.25rem;
+    }
+
+    .navbar-search-group .tree-search-input {
+        height: 28px;
+        font-size: 0.75rem !important;
+        padding-left: 1.5rem !important;
+    }
+
+    .navbar-search-group .tree-search-icon {
+        font-size: 0.65rem;
+        left: 0.45rem;
+    }
+
+    .navbar-search-group .tree-ctrl-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
+    }
+
+    .navbar-right-group {
+        flex-shrink: 0;
+        gap: 0.15rem;
+    }
+
+    .zoom-controls .btn {
+        min-width: 28px;
+        min-height: 28px;
+        width: 28px;
+        height: 28px;
+    }
+
+    .theme-toggle {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
     }
 
     .category-header h5 {

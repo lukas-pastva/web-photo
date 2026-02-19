@@ -17,13 +17,14 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <!-- Custom styles -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=9">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=10">
 </head>
 <body>
     <nav class="navbar navbar-expand-md">
         <a class="navbar-brand" href="{{ url_for('index') }}">
             <i class="fas fa-home"></i> Home
         </a>
+        {% block navbar_extra %}{% endblock %}
         <div class="navbar-right-group ml-auto d-flex align-items-center">
             <div class="zoom-controls">
                 <button id="zoom-out" class="btn btn-outline-secondary btn-sm zoom-btn" title="Zoom out"><i class="fas fa-minus"></i></button>

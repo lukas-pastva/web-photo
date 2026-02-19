@@ -675,6 +675,27 @@ video.card-img-top {
     vertical-align: middle;
 }
 
+/* ===== Tree search ===== */
+.tree-search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 260px;
+}
+.tree-search-icon {
+    position: absolute;
+    left: 0.55rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    pointer-events: none;
+}
+.tree-search-input {
+    padding-left: 1.75rem !important;
+    height: 32px;
+    font-size: 0.8rem !important;
+}
+
 /* ===== Tree controls (expand/collapse all) ===== */
 .tree-controls {
     display: flex;

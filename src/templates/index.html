@@ -1,7 +1,10 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-1">
-    <div></div>
+    <div class="tree-search-wrap">
+        <i class="fas fa-search tree-search-icon"></i>
+        <input type="text" id="tree-search" class="form-control form-control-sm tree-search-input" placeholder="Filter albums...">
+    </div>
     <div class="tree-controls">
         <button class="btn btn-outline-secondary btn-sm tree-ctrl-btn" id="toggle-tree" title="Expand all">
             <i class="fas fa-angle-double-down" id="toggle-tree-icon"></i>
@@ -143,6 +146,85 @@ $(document).ready(function(){
         }
         treeExpanded = !treeExpanded;
         updateToggleIcon();
+    });
+
+    // Album search/filter
+    var $searchInput = $('#tree-search');
+    var savedStateBeforeSearch = null;
+
+    function getCleanText(node) {
+        return (node.text || '').replace(/<[^>]*>/g, '').toLowerCase();
+    }
+
+    function filterTree(query) {
+        var allNodes = $tree.treeview('getEnabled');
+
+        if (!query) {
+            // Restore: show all nodes
+            $('#category-tree .list-group-item').show();
+            // Restore previous expanded state
+            if (savedStateBeforeSearch) {
+                saving = false;
+                $tree.treeview('collapseAll', { silent: true });
+                allNodes.forEach(function(node) {
+                    if (node.href && savedStateBeforeSearch.indexOf(node.href) !== -1) {
+                        $tree.treeview('expandNode', [node.nodeId, { silent: true }]);
+                    }
+                });
+                saving = true;
+                savedStateBeforeSearch = null;
+            }
+            return;
+        }
+
+        // Save state on first search keystroke
+        if (!savedStateBeforeSearch) {
+            savedStateBeforeSearch = getSavedExpanded();
+        }
+
+        query = query.toLowerCase();
+
+        // Expand all so every node is in the DOM
+        saving = false;
+        $tree.treeview('expandAll', { silent: true });
+        saving = true;
+
+        // Find matching nodes and their ancestors
+        var visibleIds = {};
+        allNodes.forEach(function(node) {
+            if (getCleanText(node).indexOf(query) !== -1) {
+                visibleIds[node.nodeId] = true;
+                // Walk up to mark all ancestors visible
+                var p = $tree.treeview('getParent', node.nodeId);
+                while (p && p.nodeId !== undefined) {
+                    visibleIds[p.nodeId] = true;
+                    p = $tree.treeview('getParent', p.nodeId);
+                }
+                // Also show all descendants of a matching parent
+                if (node.nodes && node.nodes.length > 0) {
+                    (function showChildren(nodes) {
+                        nodes.forEach(function(c) {
+                            visibleIds[c.nodeId] = true;
+                            if (c.nodes) showChildren(c.nodes);
+                        });
+                    })(node.nodes);
+                }
+            }
+        });
+
+        // Toggle visibility
+        allNodes.forEach(function(node) {
+            var $el = $('[data-nodeid="' + node.nodeId + '"]');
+            if (visibleIds[node.nodeId]) {
+                $el.show();
+            } else {
+                $el.hide();
+            }
+        });
+    }
+
+    $searchInput.on('input', function() {
+        filterTree($(this).val().trim());
     });
 });
 </script>

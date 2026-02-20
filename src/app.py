@@ -415,9 +415,24 @@ def admin_dashboard():
 
 @app.route('/admin/category-counts')
 def category_counts_api():
-    categories = _list_categories()
-    counts = _category_counts(categories)
-    return jsonify(counts)
+    def generate():
+        categories = _list_categories()
+        base = app.config['UPLOAD_FOLDER']
+        for cat in categories:
+            photos = 0
+            videos = 0
+            largest_dir = os.path.join(base, cat, 'largest')
+            if os.path.isdir(largest_dir):
+                for f in os.listdir(largest_dir):
+                    if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS:
+                        photos += 1
+            source_dir = os.path.join(base, cat, 'source')
+            if os.path.isdir(source_dir):
+                for f in os.listdir(source_dir):
+                    if os.path.splitext(f)[1].lower() in VIDEO_EXTENSIONS:
+                        videos += 1
+            yield f"data: {json.dumps({'cat': cat, 'photos': photos, 'videos': videos})}\n\n"
+    return Response(generate(), mimetype='text/event-stream')
 
 @app.route('/admin/duplicates/scan')
 def scan_duplicates():

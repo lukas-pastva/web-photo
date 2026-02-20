@@ -149,27 +149,24 @@ const deleteCategoryRouteTemplate = "{{ url_for('delete_category', category='CAT
 const renameCategoryRoute = "{{ url_for('rename_category') }}";
 const moveCategoryRoute = "{{ url_for('move_category') }}";
 
-/* ===== Category counts (async) ===== */
+/* ===== Category counts (async, per-album streaming) ===== */
 let catCounts = {};
 (function() {
-    fetch(routes.categoryCounts)
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            catCounts = data;
-            document.querySelectorAll('.cat-badge').forEach(function(el) {
-                var cat = el.dataset.cat;
-                var type = el.dataset.type;
-                var cnt = el.querySelector('.cnt');
-                if (cnt && data[cat]) {
-                    cnt.textContent = data[cat][type] || 0;
-                } else if (cnt) {
-                    cnt.textContent = '0';
-                }
-            });
-        })
-        .catch(function() {
-            document.querySelectorAll('.cnt').forEach(function(el) { el.textContent = '?'; });
+    var es = new EventSource(routes.categoryCounts);
+    es.onmessage = function(e) {
+        var d = JSON.parse(e.data);
+        catCounts[d.cat] = {photos: d.photos, videos: d.videos};
+        document.querySelectorAll('.cat-badge[data-cat="' + d.cat + '"]').forEach(function(el) {
+            var cnt = el.querySelector('.cnt');
+            if (cnt) cnt.textContent = d[el.dataset.type] || 0;
         });
+    };
+    es.onerror = function() {
+        es.close();
+        document.querySelectorAll('.cnt').forEach(function(el) {
+            if (el.querySelector('.fa-spinner')) el.textContent = '?';
+        });
+    };
 })();
 
 /* ===== Category creation preview ===== */

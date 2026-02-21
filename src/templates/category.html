@@ -616,7 +616,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var dragging = false;
         var dragAction = null; // 'select' or 'deselect'
         var startX = 0, startY = 0;
-        var thresholdMet = false;
+        var directionLocked = false; // true once we decide horizontal vs vertical
+        var isHorizontal = false;    // true = drag-to-select, false = scroll
         var toggled = new Set();
 
         gallery.addEventListener('touchstart', function(e) {
@@ -626,7 +627,8 @@ document.addEventListener('DOMContentLoaded', function() {
             startX = touch.clientX;
             startY = touch.clientY;
             dragging = true;
-            thresholdMet = false;
+            directionLocked = false;
+            isHorizontal = false;
             toggled.clear();
 
             // Determine action from first card under finger
@@ -645,12 +647,20 @@ document.addEventListener('DOMContentLoaded', function() {
         gallery.addEventListener('touchmove', function(e) {
             if (!dragging || !moveMode) return;
             var touch = e.touches[0];
-            if (!thresholdMet) {
-                var dx = touch.clientX - startX;
-                var dy = touch.clientY - startY;
-                if (Math.sqrt(dx * dx + dy * dy) < 10) return;
-                thresholdMet = true;
+            if (!directionLocked) {
+                var dx = Math.abs(touch.clientX - startX);
+                var dy = Math.abs(touch.clientY - startY);
+                // Wait for enough movement to determine direction
+                if (dx < 10 && dy < 10) return;
+                directionLocked = true;
+                isHorizontal = dx > dy;
+                if (!isHorizontal) {
+                    // Vertical drag — let the browser scroll normally
+                    dragging = false;
+                    return;
+                }
             }
+            // Horizontal drag — do drag-to-select, suppress scroll
             e.preventDefault();
             var el = document.elementFromPoint(touch.clientX, touch.clientY);
             if (!el) return;
@@ -669,14 +679,16 @@ document.addEventListener('DOMContentLoaded', function() {
         gallery.addEventListener('touchend', function() {
             dragging = false;
             dragAction = null;
-            thresholdMet = false;
+            directionLocked = false;
+            isHorizontal = false;
             toggled.clear();
         });
 
         gallery.addEventListener('touchcancel', function() {
             dragging = false;
             dragAction = null;
-            thresholdMet = false;
+            directionLocked = false;
+            isHorizontal = false;
             toggled.clear();
         });
     })();

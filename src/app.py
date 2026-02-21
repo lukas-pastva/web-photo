@@ -601,7 +601,8 @@ def category_view(category):
                 })
 
     all_categories = _list_categories()
-    return render_template('category.html', category=category, images=images, videos=videos, all_categories=all_categories)
+    parent_options = build_parent_options(all_categories)
+    return render_template('category.html', category=category, images=images, videos=videos, all_categories=all_categories, parent_options=parent_options)
 
 @app.route('/category/create', methods=['POST'])
 def create_category():

@@ -42,9 +42,9 @@
         </button>
         <select id="move-dest" class="form-control form-control-sm" style="width:auto;max-width:200px;font-size:0.8rem;">
             <option value="">Select album...</option>
-            {% for cat in all_categories %}
-                {% if cat != category %}
-                <option value="{{ cat }}">{{ cat }}</option>
+            {% for opt in parent_options %}
+                {% if opt.path != category %}
+                <option value="{{ opt.path }}">{{ opt.label }}</option>
                 {% endif %}
             {% endfor %}
         </select>

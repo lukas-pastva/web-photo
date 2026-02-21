@@ -262,6 +262,64 @@ a:hover { color: var(--link-color); opacity: 0.85; }
     100% { background-position: 0 0; }
 }
 
+/* ===== Photo date badge ===== */
+.photo-date-badge {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    background: rgba(0, 0, 0, 0.55);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.55rem;
+    padding: 1px 4px;
+    border-radius: 3px;
+    line-height: 1.3;
+    pointer-events: none;
+    z-index: 3;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ===== Move mode ===== */
+.move-bar {
+    padding: 0.4rem 0.5rem;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+}
+
+.move-checkbox {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 5;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--brand-bg);
+}
+
+.gallery-item-col {
+    position: relative;
+}
+
+.gallery-item-col.move-mode {
+    cursor: pointer;
+}
+
+.gallery-item-col.move-mode .media-card {
+    transition: outline 0.15s ease;
+}
+
+.gallery-item-col.move-selected .media-card {
+    outline: 2px solid var(--brand-bg);
+    outline-offset: -2px;
+}
+
+#move-toggle.active {
+    background-color: var(--brand-bg);
+    color: var(--brand-text);
+    border-color: var(--brand-bg);
+}
+
 /* ===== Video play overlay ===== */
 .play-overlay {
     position: absolute;

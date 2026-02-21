@@ -600,7 +600,8 @@ def category_view(category):
                     'poster': poster_url,
                 })
 
-    return render_template('category.html', category=category, images=images, videos=videos)
+    all_categories = _list_categories()
+    return render_template('category.html', category=category, images=images, videos=videos, all_categories=all_categories)
 
 @app.route('/category/create', methods=['POST'])
 def create_category():
@@ -837,6 +838,81 @@ def delete_photo(category, filename):
         return jsonify({'status': 'success', 'message': f"'{filename}' deleted."}), 200
     else:
         return jsonify({'status': 'fail', 'message': ' '.join(messages)}), 500
+
+@app.route('/photos/move', methods=['POST'])
+def move_photos():
+    data = request.get_json(silent=True) or {}
+    source_cat = data.get('source_category', '').strip()
+    dest_cat = data.get('dest_category', '').strip()
+    filenames = data.get('filenames', [])
+    if not source_cat or not dest_cat or not filenames:
+        return jsonify({'status': 'fail', 'message': 'Missing required fields.'}), 400
+    if source_cat == dest_cat:
+        return jsonify({'status': 'fail', 'message': 'Source and destination are the same.'}), 400
+    base = app.config['UPLOAD_FOLDER']
+    if not os.path.isdir(os.path.join(base, source_cat)):
+        return jsonify({'status': 'fail', 'message': 'Source category does not exist.'}), 404
+    if not os.path.isdir(os.path.join(base, dest_cat)):
+        return jsonify({'status': 'fail', 'message': 'Destination category does not exist.'}), 404
+    moved = []
+    errors = []
+    for filename in filenames:
+        name, ext = os.path.splitext(filename)
+        ext_lower = ext.lower()
+        try:
+            if ext_lower in IMAGE_EXTENSIONS:
+                subdirs = ['source', 'largest', 'medium', 'thumbnail']
+            elif ext_lower in VIDEO_EXTENSIONS:
+                subdirs = ['source', 'video_thumbnail']
+            else:
+                subdirs = ['source']
+            for sub in subdirs:
+                # For thumbnail/medium, the extension is always .jpeg
+                if sub in ('thumbnail', 'medium', 'video_thumbnail'):
+                    src_file = os.path.join(base, source_cat, sub, f'{name}.jpeg')
+                else:
+                    src_file = os.path.join(base, source_cat, sub, filename)
+                if os.path.exists(src_file):
+                    dest_dir = os.path.join(base, dest_cat, sub)
+                    os.makedirs(dest_dir, exist_ok=True)
+                    dest_file = os.path.join(dest_dir, os.path.basename(src_file))
+                    shutil.move(src_file, dest_file)
+            # Also try to move the largest file which may have different extension for HEIC
+            if ext_lower in IMAGE_EXTENSIONS:
+                largest_dir = os.path.join(base, source_cat, 'largest')
+                if os.path.isdir(largest_dir):
+                    for f in os.listdir(largest_dir):
+                        if os.path.splitext(f)[0] == name:
+                            src_f = os.path.join(largest_dir, f)
+                            dest_dir = os.path.join(base, dest_cat, 'largest')
+                            os.makedirs(dest_dir, exist_ok=True)
+                            dest_f = os.path.join(dest_dir, f)
+                            if not os.path.exists(dest_f):
+                                shutil.move(src_f, dest_f)
+            # Move dimensions.json entry
+            src_dims = os.path.join(base, source_cat, 'dimensions.json')
+            dest_dims = os.path.join(base, dest_cat, 'dimensions.json')
+            if os.path.exists(src_dims):
+                with open(src_dims, 'r') as f:
+                    src_data = json.load(f)
+                if name in src_data:
+                    entry = src_data.pop(name)
+                    with open(src_dims, 'w') as f:
+                        json.dump(src_data, f)
+                    dest_data = {}
+                    if os.path.exists(dest_dims):
+                        with open(dest_dims, 'r') as f:
+                            dest_data = json.load(f)
+                    dest_data[name] = entry
+                    with open(dest_dims, 'w') as f:
+                        json.dump(dest_data, f)
+            moved.append(filename)
+        except Exception as e:
+            errors.append(f'{filename}: {str(e)}')
+    if errors:
+        return jsonify({'status': 'partial', 'message': f'Moved {len(moved)}, errors: {"; ".join(errors)}', 'moved': moved}), 207
+    return jsonify({'status': 'success', 'message': f'{len(moved)} photo(s) moved.', 'moved': moved})
+
 
 @app.route('/download_single/<category>/<size>/<filename>')
 def download_single(category, size, filename):

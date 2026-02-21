@@ -22,6 +22,33 @@
     <a href="{{ url_for('download_videos', category=category) }}" class="btn btn-outline-warning btn-sm download-btn" title="Videos">
         <i class="fas fa-download"></i> Vids
     </a>
+    <button id="sort-toggle" class="btn btn-outline-secondary btn-sm" title="Sort by date">
+        <i class="fas fa-sort-amount-down" id="sort-icon"></i>
+    </button>
+    <button id="move-toggle" class="btn btn-outline-secondary btn-sm" title="Move photos">
+        <i class="fas fa-arrows-alt"></i> Move
+    </button>
+</div>
+
+<!-- Move bar (hidden by default) -->
+<div id="move-bar" class="move-bar mb-2" style="display:none;">
+    <div class="d-flex align-items-center flex-wrap" style="gap:0.4rem;">
+        <span class="move-bar-count text-muted" style="font-size:0.8rem;" id="move-count">0 selected</span>
+        <select id="move-dest" class="form-control form-control-sm" style="width:auto;max-width:200px;font-size:0.8rem;">
+            <option value="">Select album...</option>
+            {% for cat in all_categories %}
+                {% if cat != category %}
+                <option value="{{ cat }}">{{ cat }}</option>
+                {% endif %}
+            {% endfor %}
+        </select>
+        <button id="move-confirm" class="btn btn-primary btn-sm" disabled style="font-size:0.8rem;">
+            <i class="fas fa-check"></i> Move
+        </button>
+        <button id="move-cancel" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
+            Cancel
+        </button>
+    </div>
 </div>
 
 <!-- Download overlay -->
@@ -51,7 +78,7 @@
   <div class="tab-pane fade show active" id="images-pane" role="tabpanel">
     <div class="row gallery-grid" id="gallery">
       {% for file in images %}
-      <div class="col-4 col-sm-3 col-md-3 col-lg-2">
+      <div class="col-4 col-sm-3 col-md-3 col-lg-2 gallery-item-col" data-date="{{ file.meta.get('date', '') }}" data-filename="{{ file.filename }}">
         <div class="card media-card">
           <a href="{{ url_for('uploaded_file', filename=category + '/largest/' + file.filename) }}"
              data-pswp-title="{{ file.filename }}"
@@ -68,8 +95,12 @@
                      onload="this.closest('.thumb-container')?.classList.remove('loading')"
                      onerror="this.closest('.thumb-container')?.classList.remove('loading'); this.src='{{ url_for('static', filename='placeholder.jpg') }}'">
                 <div class="thumb-spinner spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
+                {% if file.meta.get('date') %}
+                <span class="photo-date-badge">{{ file.meta.date[:10] | replace(":", "-") }}</span>
+                {% endif %}
               </div>
           </a>
+          <input type="checkbox" class="move-checkbox" data-filename="{{ file.filename }}" style="display:none;">
           <div class="card-actions">
             <div class="btn-group btn-group-sm" role="group">
               <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" class="btn btn-outline-primary btn-xs" download title="Source">L</a>
@@ -166,28 +197,29 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const deleteForms = document.querySelectorAll('.delete-form');
-    const dialog = document.getElementById('delete-confirmation-dialog');
-    const dialogText = document.getElementById('dialog-text');
-    const confirmDeleteButton = document.getElementById('confirm-delete');
-    let currentForm = null;
+    var CATEGORY = {{ category | tojson }};
+    var deleteForms = document.querySelectorAll('.delete-form');
+    var dialog = document.getElementById('delete-confirmation-dialog');
+    var dialogText = document.getElementById('dialog-text');
+    var confirmDeleteButton = document.getElementById('confirm-delete');
+    var currentForm = null;
 
-    // PhotoSwipe setup
-    const pswpElement = document.querySelectorAll('.pswp')[0];
-    const uiElement = PhotoSwipeUI_Default;
-    const galleryLinks = document.querySelectorAll('.gallery-item');
-    const items = [];
+    // ===== PhotoSwipe setup =====
+    var pswpElement = document.querySelectorAll('.pswp')[0];
+    var uiElement = PhotoSwipeUI_Default;
+    var galleryLinks = document.querySelectorAll('.gallery-item');
+    var items = [];
 
     galleryLinks.forEach(function(link) {
-        const src = link.getAttribute('href');
-        const title = link.getAttribute('data-pswp-title');
-        const width = parseInt(link.getAttribute('data-pswp-width')) || 1024;
-        const height = parseInt(link.getAttribute('data-pswp-height')) || 768;
+        var src = link.getAttribute('href');
+        var title = link.getAttribute('data-pswp-title');
+        var width = parseInt(link.getAttribute('data-pswp-width')) || 1024;
+        var height = parseInt(link.getAttribute('data-pswp-height')) || 768;
 
-        let metaHtml = '';
+        var metaHtml = '';
         try {
-            const meta = JSON.parse(link.getAttribute('data-pswp-meta') || '{}');
-            const parts = [];
+            var meta = JSON.parse(link.getAttribute('data-pswp-meta') || '{}');
+            var parts = [];
             if (meta.camera) parts.push(meta.camera);
             if (meta.date) parts.push(meta.date);
             if (meta.aperture) parts.push(meta.aperture);
@@ -212,6 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     galleryLinks.forEach(function(link, index) {
         link.addEventListener('click', function(e) {
+            if (moveMode) return e.preventDefault();
             e.preventDefault();
             var gallery = new PhotoSwipe(pswpElement, uiElement, items, {
                 index: index,
@@ -223,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Delete handling
+    // ===== Delete handling =====
     deleteForms.forEach(function(form) {
         form.addEventListener('submit', function(event) {
             event.preventDefault();
@@ -263,7 +296,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Download overlay with fetch
+    // ===== Download overlay with fetch =====
     var overlay = document.getElementById('download-overlay');
     var overlayText = document.getElementById('download-overlay-text');
     document.querySelectorAll('.download-btn').forEach(function(btn) {
@@ -299,7 +332,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Video poster -> player
+    // ===== Video poster -> player =====
     document.querySelectorAll('.video-poster').forEach(function(container) {
         container.addEventListener('click', function() {
             var src = container.getAttribute('data-video-src');
@@ -313,6 +346,182 @@ document.addEventListener('DOMContentLoaded', function() {
             source.src = src;
             video.appendChild(source);
             container.replaceWith(video);
+        });
+    });
+
+    // ===== Sort toggle =====
+    var sortDesc = true; // default: newest first
+    var sortBtn = document.getElementById('sort-toggle');
+    var sortIcon = document.getElementById('sort-icon');
+
+    sortBtn.addEventListener('click', function() {
+        sortDesc = !sortDesc;
+        sortIcon.className = sortDesc ? 'fas fa-sort-amount-down' : 'fas fa-sort-amount-up';
+        sortBtn.title = sortDesc ? 'Newest first' : 'Oldest first';
+
+        var gallery = document.getElementById('gallery');
+        var cols = Array.from(gallery.querySelectorAll('.gallery-item-col'));
+        if (!cols.length) return;
+
+        cols.sort(function(a, b) {
+            var da = a.getAttribute('data-date') || '';
+            var db = b.getAttribute('data-date') || '';
+            if (!da && !db) return 0;
+            if (!da) return 1;
+            if (!db) return -1;
+            return sortDesc ? db.localeCompare(da) : da.localeCompare(db);
+        });
+
+        cols.forEach(function(col) { gallery.appendChild(col); });
+
+        // Rebuild PhotoSwipe items after reorder
+        items.length = 0;
+        document.querySelectorAll('.gallery-item').forEach(function(link) {
+            var src = link.getAttribute('href');
+            var title = link.getAttribute('data-pswp-title');
+            var width = parseInt(link.getAttribute('data-pswp-width')) || 1024;
+            var height = parseInt(link.getAttribute('data-pswp-height')) || 768;
+            var metaHtml = '';
+            try {
+                var meta = JSON.parse(link.getAttribute('data-pswp-meta') || '{}');
+                var parts = [];
+                if (meta.camera) parts.push(meta.camera);
+                if (meta.date) parts.push(meta.date);
+                if (meta.aperture) parts.push(meta.aperture);
+                if (meta.shutter) parts.push(meta.shutter);
+                if (meta.iso) parts.push('ISO ' + meta.iso);
+                if (meta.focal_length) parts.push(meta.focal_length);
+                if (parts.length) metaHtml = '<br><small style="opacity:0.7">' + parts.join(' &middot; ') + '</small>';
+                if (meta.gps) metaHtml += ' <a href="https://maps.google.com/?q=' + meta.gps.lat + ',' + meta.gps.lon + '" target="_blank" rel="noopener" style="color:#8cf;font-size:0.8em"><i class="fas fa-map-marker-alt"></i> Map</a>';
+            } catch(e) {}
+            items.push({ src: src, w: width, h: height, title: title + metaHtml });
+        });
+
+        // Re-bind click events
+        document.querySelectorAll('.gallery-item').forEach(function(link, index) {
+            var newLink = link.cloneNode(true);
+            link.parentNode.replaceChild(newLink, link);
+            newLink.addEventListener('click', function(e) {
+                if (moveMode) return e.preventDefault();
+                e.preventDefault();
+                var gallery = new PhotoSwipe(pswpElement, uiElement, items, {
+                    index: index, bgOpacity: 0.9, showHideOpacity: true, preload: [1,1]
+                });
+                gallery.init();
+            });
+        });
+    });
+
+    // ===== Move photos =====
+    var moveMode = false;
+    var moveToggle = document.getElementById('move-toggle');
+    var moveBar = document.getElementById('move-bar');
+    var moveCount = document.getElementById('move-count');
+    var moveDest = document.getElementById('move-dest');
+    var moveConfirm = document.getElementById('move-confirm');
+    var moveCancel = document.getElementById('move-cancel');
+
+    function updateMoveCount() {
+        var checked = document.querySelectorAll('.move-checkbox:checked').length;
+        moveCount.textContent = checked + ' selected';
+        moveConfirm.disabled = checked === 0 || !moveDest.value;
+        document.querySelectorAll('.move-checkbox').forEach(function(cb) {
+            var col = cb.closest('.gallery-item-col');
+            if (col) col.classList.toggle('move-selected', cb.checked);
+        });
+    }
+
+    function enterMoveMode() {
+        moveMode = true;
+        moveBar.style.display = '';
+        moveToggle.classList.add('active');
+        document.querySelectorAll('.move-checkbox').forEach(function(cb) {
+            cb.style.display = '';
+            cb.checked = false;
+        });
+        document.querySelectorAll('.gallery-item-col').forEach(function(col) {
+            col.classList.add('move-mode');
+        });
+        updateMoveCount();
+    }
+
+    function exitMoveMode() {
+        moveMode = false;
+        moveBar.style.display = 'none';
+        moveToggle.classList.remove('active');
+        document.querySelectorAll('.move-checkbox').forEach(function(cb) {
+            cb.style.display = 'none';
+            cb.checked = false;
+        });
+        document.querySelectorAll('.gallery-item-col').forEach(function(col) {
+            col.classList.remove('move-mode');
+        });
+        moveDest.value = '';
+    }
+
+    moveToggle.addEventListener('click', function() {
+        if (moveMode) exitMoveMode();
+        else enterMoveMode();
+    });
+
+    moveCancel.addEventListener('click', function() { exitMoveMode(); });
+    moveDest.addEventListener('change', updateMoveCount);
+
+    // Click on card toggles checkbox in move mode
+    document.querySelectorAll('.gallery-item-col').forEach(function(col) {
+        col.addEventListener('click', function(e) {
+            if (!moveMode) return;
+            if (e.target.closest('.card-actions') || e.target.closest('.move-checkbox')) return;
+            var cb = col.querySelector('.move-checkbox');
+            if (cb) {
+                cb.checked = !cb.checked;
+                updateMoveCount();
+            }
+        });
+    });
+
+    document.querySelectorAll('.move-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', updateMoveCount);
+    });
+
+    moveConfirm.addEventListener('click', function() {
+        var dest = moveDest.value;
+        if (!dest) return;
+        var selected = [];
+        document.querySelectorAll('.move-checkbox:checked').forEach(function(cb) {
+            selected.push(cb.getAttribute('data-filename'));
+        });
+        if (!selected.length) return;
+        moveConfirm.disabled = true;
+        moveConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        fetch('/photos/move', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                source_category: CATEGORY,
+                dest_category: dest,
+                filenames: selected
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success' || data.status === 'partial') {
+                (data.moved || []).forEach(function(fname) {
+                    var col = document.querySelector('.gallery-item-col[data-filename="' + fname + '"]');
+                    if (col) col.remove();
+                });
+                exitMoveMode();
+            } else {
+                alert(data.message || 'Move failed.');
+            }
+            moveConfirm.disabled = false;
+            moveConfirm.innerHTML = '<i class="fas fa-check"></i> Move';
+        })
+        .catch(function() {
+            alert('Error moving photos.');
+            moveConfirm.disabled = false;
+            moveConfirm.innerHTML = '<i class="fas fa-check"></i> Move';
         });
     });
 });

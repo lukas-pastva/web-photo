@@ -839,6 +839,66 @@ def delete_photo(category, filename):
     else:
         return jsonify({'status': 'fail', 'message': ' '.join(messages)}), 500
 
+@app.route('/photos/delete', methods=['POST'])
+def delete_photos_bulk():
+    data = request.get_json(silent=True) or {}
+    category = data.get('category', '').strip()
+    filenames = data.get('filenames', [])
+    if not category or not filenames:
+        return jsonify({'status': 'fail', 'message': 'Missing required fields.'}), 400
+    base = app.config['UPLOAD_FOLDER']
+    if not os.path.isdir(os.path.join(base, category)):
+        return jsonify({'status': 'fail', 'message': 'Category does not exist.'}), 404
+    deleted = []
+    errors = []
+    names_to_remove = []
+    for filename in filenames:
+        name, ext = os.path.splitext(filename)
+        ext_lower = ext.lower()
+        try:
+            # Delete from source
+            src = os.path.join(base, category, 'source', filename)
+            if os.path.exists(src):
+                os.remove(src)
+            # Delete derived files by stem (handles extension mismatches)
+            for sub in ['largest', 'medium', 'thumbnail']:
+                sub_dir = os.path.join(base, category, sub)
+                if os.path.isdir(sub_dir):
+                    for f in os.listdir(sub_dir):
+                        if os.path.splitext(f)[0] == name:
+                            try:
+                                os.remove(os.path.join(sub_dir, f))
+                            except OSError:
+                                pass
+            # Delete video thumbnail
+            vt = os.path.join(base, category, 'video_thumbnail', name + '.jpeg')
+            if os.path.exists(vt):
+                try:
+                    os.remove(vt)
+                except OSError:
+                    pass
+            names_to_remove.append(name)
+            deleted.append(filename)
+        except Exception as e:
+            errors.append(f'{filename}: {str(e)}')
+    # Update dimensions.json once for all deleted files
+    if names_to_remove:
+        dims_path = os.path.join(base, category, 'dimensions.json')
+        if os.path.exists(dims_path):
+            try:
+                with open(dims_path, 'r') as f:
+                    dims = json.load(f)
+                for n in names_to_remove:
+                    dims.pop(n, None)
+                with open(dims_path, 'w') as f:
+                    json.dump(dims, f)
+            except Exception:
+                pass
+    if errors:
+        return jsonify({'status': 'partial', 'message': f'Deleted {len(deleted)}, errors: {"; ".join(errors)}', 'deleted': deleted}), 207
+    return jsonify({'status': 'success', 'message': f'{len(deleted)} photo(s) deleted.', 'deleted': deleted})
+
+
 @app.route('/photos/move', methods=['POST'])
 def move_photos():
     data = request.get_json(silent=True) or {}

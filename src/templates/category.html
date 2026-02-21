@@ -34,6 +34,12 @@
 <div id="move-bar" class="move-bar mb-2" style="display:none;">
     <div class="d-flex align-items-center flex-wrap" style="gap:0.4rem;">
         <span class="move-bar-count text-muted" style="font-size:0.8rem;" id="move-count">0 selected</span>
+        <button id="select-all" class="btn btn-outline-secondary btn-sm" style="font-size:0.8rem;">
+            <i class="fas fa-check-double"></i> All
+        </button>
+        <button id="deselect-all" class="btn btn-outline-secondary btn-sm" style="font-size:0.8rem;">
+            <i class="fas fa-times"></i> None
+        </button>
         <select id="move-dest" class="form-control form-control-sm" style="width:auto;max-width:200px;font-size:0.8rem;">
             <option value="">Select album...</option>
             {% for cat in all_categories %}
@@ -44,6 +50,9 @@
         </select>
         <button id="move-confirm" class="btn btn-primary btn-sm" disabled style="font-size:0.8rem;">
             <i class="fas fa-check"></i> Move
+        </button>
+        <button id="delete-selected" class="btn btn-danger btn-sm" disabled style="font-size:0.8rem;">
+            <i class="fas fa-trash-alt"></i> Delete
         </button>
         <button id="move-cancel" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
             Cancel
@@ -191,6 +200,17 @@
         <div class="dialog-actions">
             <button value="cancel" class="btn btn-sm btn-secondary">Cancel</button>
             <button id="confirm-delete" value="default" class="btn btn-sm btn-danger">Delete</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- Bulk delete confirmation dialog -->
+<dialog id="bulk-delete-dialog" class="delete-dialog">
+    <form method="dialog">
+        <p id="bulk-delete-text">Are you sure you want to delete the selected photos?</p>
+        <div class="dialog-actions">
+            <button value="cancel" class="btn btn-sm btn-secondary">Cancel</button>
+            <button id="confirm-bulk-delete" value="default" class="btn btn-sm btn-danger">Delete</button>
         </div>
     </form>
 </dialog>
@@ -421,10 +441,13 @@ document.addEventListener('DOMContentLoaded', function() {
     var moveConfirm = document.getElementById('move-confirm');
     var moveCancel = document.getElementById('move-cancel');
 
+    var deleteSelected = document.getElementById('delete-selected');
+
     function updateMoveCount() {
         var checked = document.querySelectorAll('.move-checkbox:checked').length;
         moveCount.textContent = checked + ' selected';
         moveConfirm.disabled = checked === 0 || !moveDest.value;
+        deleteSelected.disabled = checked === 0;
         document.querySelectorAll('.move-checkbox').forEach(function(cb) {
             var col = cb.closest('.gallery-item-col');
             if (col) col.classList.toggle('move-selected', cb.checked);
@@ -524,6 +547,139 @@ document.addEventListener('DOMContentLoaded', function() {
             moveConfirm.innerHTML = '<i class="fas fa-check"></i> Move';
         });
     });
+
+    // ===== Select All / Deselect All =====
+    document.getElementById('select-all').addEventListener('click', function() {
+        document.querySelectorAll('.move-checkbox').forEach(function(cb) { cb.checked = true; });
+        updateMoveCount();
+    });
+    document.getElementById('deselect-all').addEventListener('click', function() {
+        document.querySelectorAll('.move-checkbox').forEach(function(cb) { cb.checked = false; });
+        updateMoveCount();
+    });
+
+    // ===== Bulk Delete =====
+    var bulkDeleteDialog = document.getElementById('bulk-delete-dialog');
+    var bulkDeleteText = document.getElementById('bulk-delete-text');
+    var confirmBulkDelete = document.getElementById('confirm-bulk-delete');
+
+    deleteSelected.addEventListener('click', function() {
+        var checked = document.querySelectorAll('.move-checkbox:checked').length;
+        if (!checked) return;
+        bulkDeleteText.textContent = 'Delete ' + checked + ' selected photo(s)? This cannot be undone.';
+        bulkDeleteDialog.showModal();
+    });
+
+    confirmBulkDelete.addEventListener('click', function() {
+        var selected = [];
+        document.querySelectorAll('.move-checkbox:checked').forEach(function(cb) {
+            selected.push(cb.getAttribute('data-filename'));
+        });
+        if (!selected.length) return;
+        deleteSelected.disabled = true;
+        deleteSelected.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        fetch('/photos/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                category: CATEGORY,
+                filenames: selected
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'success' || data.status === 'partial') {
+                (data.deleted || []).forEach(function(fname) {
+                    var col = document.querySelector('.gallery-item-col[data-filename="' + fname + '"]');
+                    if (col) col.remove();
+                });
+                updateMoveCount();
+            } else {
+                alert(data.message || 'Delete failed.');
+            }
+            deleteSelected.disabled = false;
+            deleteSelected.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+            bulkDeleteDialog.close();
+        })
+        .catch(function() {
+            alert('Error deleting photos.');
+            deleteSelected.disabled = false;
+            deleteSelected.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+            bulkDeleteDialog.close();
+        });
+    });
+
+    // ===== Mobile Drag-to-Select =====
+    (function() {
+        var gallery = document.getElementById('gallery');
+        var dragging = false;
+        var dragAction = null; // 'select' or 'deselect'
+        var startX = 0, startY = 0;
+        var thresholdMet = false;
+        var toggled = new Set();
+
+        gallery.addEventListener('touchstart', function(e) {
+            if (!moveMode) return;
+            if (e.touches.length !== 1) return;
+            var touch = e.touches[0];
+            startX = touch.clientX;
+            startY = touch.clientY;
+            dragging = true;
+            thresholdMet = false;
+            toggled.clear();
+
+            // Determine action from first card under finger
+            var el = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (el) {
+                var col = el.closest('.gallery-item-col');
+                if (col) {
+                    var cb = col.querySelector('.move-checkbox');
+                    if (cb) {
+                        dragAction = cb.checked ? 'deselect' : 'select';
+                    }
+                }
+            }
+        }, {passive: true});
+
+        gallery.addEventListener('touchmove', function(e) {
+            if (!dragging || !moveMode) return;
+            var touch = e.touches[0];
+            if (!thresholdMet) {
+                var dx = touch.clientX - startX;
+                var dy = touch.clientY - startY;
+                if (Math.sqrt(dx * dx + dy * dy) < 10) return;
+                thresholdMet = true;
+            }
+            e.preventDefault();
+            var el = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (!el) return;
+            var col = el.closest('.gallery-item-col');
+            if (!col) return;
+            var fname = col.getAttribute('data-filename');
+            if (!fname || toggled.has(fname)) return;
+            toggled.add(fname);
+            var cb = col.querySelector('.move-checkbox');
+            if (cb) {
+                cb.checked = (dragAction === 'select');
+                updateMoveCount();
+            }
+        }, {passive: false});
+
+        gallery.addEventListener('touchend', function() {
+            dragging = false;
+            dragAction = null;
+            thresholdMet = false;
+            toggled.clear();
+        });
+
+        gallery.addEventListener('touchcancel', function() {
+            dragging = false;
+            dragAction = null;
+            thresholdMet = false;
+            toggled.clear();
+        });
+    })();
 });
 </script>
 {% endblock %}

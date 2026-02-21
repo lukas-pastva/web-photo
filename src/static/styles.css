@@ -303,6 +303,9 @@ a:hover { color: var(--link-color); opacity: 0.85; }
 
 .gallery-item-col.move-mode {
     cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .gallery-item-col.move-mode .media-card {
@@ -939,6 +942,17 @@ video.card-img-top {
     .card-body .form-control-sm {
         min-height: 40px;
         font-size: 0.9rem;
+    }
+
+    .move-bar .btn-sm {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+        min-height: 32px;
+    }
+
+    .move-bar .form-control-sm {
+        font-size: 0.7rem;
+        min-height: 32px;
     }
 
     .delete-dialog {

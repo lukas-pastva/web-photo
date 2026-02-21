@@ -72,7 +72,7 @@
 <ul class="nav nav-tabs nav-tabs-compact mb-0" id="mediaTabs" role="tablist">
   <li class="nav-item">
     <a class="nav-link active" id="images-tab" data-toggle="tab" href="#images-pane" role="tab">
-      Images{% if images %} <span class="badge badge-light">{{ images|length }}</span>{% endif %}
+      Images <span class="badge badge-light" id="images-count-badge">{{ images|length }}</span>
     </a>
   </li>
   <li class="nav-item">
@@ -298,6 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.status === 'success') {
                 var card = currentForm.closest('.card').parentElement;
                 card.remove();
+                updateImageCount();
             } else {
                 alert(data.message);
             }
@@ -443,6 +444,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var deleteSelected = document.getElementById('delete-selected');
 
+    function updateImageCount() {
+        var count = document.querySelectorAll('#gallery .gallery-item-col').length;
+        var badge = document.getElementById('images-count-badge');
+        if (badge) badge.textContent = count;
+    }
+
     function updateMoveCount() {
         var checked = document.querySelectorAll('.move-checkbox:checked').length;
         moveCount.textContent = checked + ' selected';
@@ -515,8 +522,9 @@ document.addEventListener('DOMContentLoaded', function() {
             selected.push(cb.getAttribute('data-filename'));
         });
         if (!selected.length) return;
+        var total = selected.length;
         moveConfirm.disabled = true;
-        moveConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        moveConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 0/' + total;
 
         fetch('/photos/move', {
             method: 'POST',
@@ -530,10 +538,13 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.status === 'success' || data.status === 'partial') {
-                (data.moved || []).forEach(function(fname) {
+                var moved = data.moved || [];
+                moved.forEach(function(fname, i) {
                     var col = document.querySelector('.gallery-item-col[data-filename="' + fname + '"]');
                     if (col) col.remove();
+                    moveConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (i + 1) + '/' + total;
                 });
+                updateImageCount();
                 exitMoveMode();
             } else {
                 alert(data.message || 'Move failed.');
@@ -576,8 +587,10 @@ document.addEventListener('DOMContentLoaded', function() {
             selected.push(cb.getAttribute('data-filename'));
         });
         if (!selected.length) return;
+        var total = selected.length;
         deleteSelected.disabled = true;
-        deleteSelected.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        deleteSelected.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 0/' + total;
+        bulkDeleteDialog.close();
 
         fetch('/photos/delete', {
             method: 'POST',
@@ -590,17 +603,19 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.status === 'success' || data.status === 'partial') {
-                (data.deleted || []).forEach(function(fname) {
+                var deleted = data.deleted || [];
+                deleted.forEach(function(fname, i) {
                     var col = document.querySelector('.gallery-item-col[data-filename="' + fname + '"]');
                     if (col) col.remove();
+                    deleteSelected.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (i + 1) + '/' + total;
                 });
+                updateImageCount();
                 updateMoveCount();
             } else {
                 alert(data.message || 'Delete failed.');
             }
             deleteSelected.disabled = false;
             deleteSelected.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
-            bulkDeleteDialog.close();
         })
         .catch(function() {
             alert('Error deleting photos.');

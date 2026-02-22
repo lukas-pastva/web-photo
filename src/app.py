@@ -615,6 +615,7 @@ def create_category():
         os.makedirs(category_path, exist_ok=True)
         for sub_dir in ['source', 'largest', 'medium', 'thumbnail']:
             os.makedirs(os.path.join(category_path, sub_dir), exist_ok=True)
+        return redirect(url_for('upload_file', category=category))
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/category/delete/<category>', methods=['POST'])

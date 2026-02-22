@@ -14,7 +14,7 @@
                    multiple required>
         </div>
         <div id="file-count" class="text-muted small mt-1 mb-2"></div>
-        <button type="submit" class="btn btn-success btn-block btn-lg upload-submit-btn">
+        <button type="submit" class="btn btn-success btn-block btn-lg upload-submit-btn" id="uploadBtn" style="display: none;">
             <i class="fas fa-upload"></i> Upload
         </button>
     </form>
@@ -25,19 +25,36 @@
              style="width: 0%;" id="uploadProgressBar">0%</div>
     </div>
 
-    <div class="spinner-border text-primary mt-3" role="status" id="uploadSpinner" style="display: none;">
-        <span class="sr-only">Uploading...</span>
-    </div>
-
+    <div class="text-muted small mt-1" id="uploadDetail" style="display: none; font-variant-numeric: tabular-nums;"></div>
     <div class="mt-2" id="uploadStatus"></div>
 
-    <a href="{{ url_for('category_view', category=category) }}" class="btn btn-outline-secondary btn-block mt-3">
+    <a href="{{ url_for('category_view', category=category) }}" class="btn btn-outline-secondary btn-block mt-3" id="backBtn">
         <i class="fas fa-arrow-left"></i> Back to Category
     </a>
 </div>
 
+<!-- Upload lock overlay - prevents accidental taps during upload -->
+<div id="uploadLockOverlay" class="upload-lock-overlay">
+    <div class="upload-lock-content">
+        <div class="upload-lock-icon"><i class="fas fa-lock"></i></div>
+        <div class="upload-lock-progress-info" id="lockProgressInfo">Uploading... 0.0%</div>
+        <div class="upload-lock-detail" id="lockDetailInfo"></div>
+        <div class="upload-lock-hint mt-3">Slide to unlock</div>
+        <div class="upload-lock-slider" id="lockSlider">
+            <div class="upload-lock-track">
+                <div class="upload-lock-thumb" id="lockThumb">
+                    <i class="fas fa-chevron-right"></i><i class="fas fa-chevron-right"></i>
+                </div>
+                <div class="upload-lock-track-fill" id="lockTrackFill"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let wakeLock = null;
+let isUploading = false;
+let uploadStartTime = 0;
 
 async function requestWakeLock() {
     try {
@@ -53,10 +70,34 @@ async function releaseWakeLock() {
     }
 }
 
-// Show file count on selection
-document.getElementById('photos').addEventListener('change', function() {
+function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+    return (bytes / 1073741824).toFixed(2) + ' GB';
+}
+
+function formatSpeed(bytesPerSec) {
+    if (bytesPerSec < 1048576) return (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+    return (bytesPerSec / 1048576).toFixed(1) + ' MB/s';
+}
+
+function formatTime(seconds) {
+    if (seconds < 60) return Math.ceil(seconds) + 's';
+    if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.ceil(seconds % 60) + 's';
+    var h = Math.floor(seconds / 3600);
+    var m = Math.ceil((seconds % 3600) / 60);
+    return h + 'h ' + m + 'm';
+}
+
+// Show/hide upload button based on file selection
+var photosInput = document.getElementById('photos');
+var uploadBtn = document.getElementById('uploadBtn');
+
+photosInput.addEventListener('change', function() {
     var count = this.files.length;
     document.getElementById('file-count').textContent = count ? count + ' file(s) selected' : '';
+    uploadBtn.style.display = count ? '' : 'none';
 });
 
 // Drag and drop visual feedback
@@ -74,14 +115,98 @@ var dropZone = document.getElementById('dropZone');
     });
 });
 
+// Lock overlay logic
+var lockOverlay = document.getElementById('uploadLockOverlay');
+var lockThumb = document.getElementById('lockThumb');
+var lockTrackFill = document.getElementById('lockTrackFill');
+var lockSlider = document.getElementById('lockSlider');
+var lockProgressInfo = document.getElementById('lockProgressInfo');
+var lockDetailInfo = document.getElementById('lockDetailInfo');
+
+function showLockOverlay() {
+    lockOverlay.classList.add('active');
+}
+
+function hideLockOverlay() {
+    lockOverlay.classList.remove('active');
+    resetSlider();
+}
+
+function resetSlider() {
+    lockThumb.style.left = '2px';
+    lockTrackFill.style.width = '0';
+}
+
+// Slide-to-unlock touch/mouse handling
+(function() {
+    var dragging = false;
+    var startX = 0;
+    var thumbWidth = 48;
+
+    function getTrackWidth() {
+        return lockSlider.querySelector('.upload-lock-track').offsetWidth;
+    }
+
+    function onStart(clientX) {
+        if (!isUploading) return;
+        dragging = true;
+        startX = clientX;
+        lockThumb.style.transition = 'none';
+        lockTrackFill.style.transition = 'none';
+    }
+
+    function onMove(clientX) {
+        if (!dragging) return;
+        var trackW = getTrackWidth();
+        var maxLeft = trackW - thumbWidth - 4;
+        var delta = clientX - startX;
+        var newLeft = Math.max(2, Math.min(delta + 2, maxLeft));
+        lockThumb.style.left = newLeft + 'px';
+        lockTrackFill.style.width = newLeft + 'px';
+
+        // Unlock threshold: 85% of track
+        if (newLeft >= maxLeft * 0.85) {
+            dragging = false;
+            hideLockOverlay();
+        }
+    }
+
+    function onEnd() {
+        if (!dragging) return;
+        dragging = false;
+        lockThumb.style.transition = 'left 0.3s ease';
+        lockTrackFill.style.transition = 'width 0.3s ease';
+        resetSlider();
+    }
+
+    // Touch events
+    lockThumb.addEventListener('touchstart', function(e) {
+        onStart(e.touches[0].clientX);
+    }, {passive: true});
+    document.addEventListener('touchmove', function(e) {
+        if (dragging) onMove(e.touches[0].clientX);
+    }, {passive: true});
+    document.addEventListener('touchend', onEnd);
+
+    // Mouse events
+    lockThumb.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        onStart(e.clientX);
+    });
+    document.addEventListener('mousemove', function(e) {
+        onMove(e.clientX);
+    });
+    document.addEventListener('mouseup', onEnd);
+})();
+
+// Upload form submission
 document.getElementById('uploadForm').addEventListener('submit', function(event) {
     event.preventDefault();
     var filesInput = document.getElementById('photos');
     var files = filesInput.files;
-    if (files.length === 0) {
-        alert('Please select at least one file.');
-        return;
-    }
+    if (files.length === 0) return;
+
+    isUploading = true;
 
     var formData = new FormData();
     for (var i = 0; i < files.length; i++) {
@@ -93,25 +218,51 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
 
     var progressContainer = document.getElementById('uploadProgressContainer');
     var progressBar = document.getElementById('uploadProgressBar');
-    var spinner = document.getElementById('uploadSpinner');
+    var uploadDetail = document.getElementById('uploadDetail');
     var uploadStatus = document.getElementById('uploadStatus');
+    var backBtn = document.getElementById('backBtn');
+
     progressContainer.style.display = 'flex';
-    spinner.style.display = 'block';
+    uploadDetail.style.display = 'block';
     progressBar.style.width = '0%';
-    progressBar.textContent = '0%';
+    progressBar.textContent = '0.0%';
+    uploadDetail.textContent = '';
     uploadStatus.innerHTML = '';
+    uploadBtn.style.display = 'none';
+    backBtn.style.display = 'none';
+    uploadStartTime = Date.now();
+
+    // Auto-activate lock overlay on upload start
+    showLockOverlay();
 
     if ('wakeLock' in navigator) { requestWakeLock(); }
 
     xhr.upload.addEventListener('progress', function(e) {
         if (e.lengthComputable) {
-            var pct = Math.round((e.loaded / e.total) * 100);
+            var pct = (e.loaded / e.total) * 100;
+            var pctText = pct.toFixed(1) + '%';
             progressBar.style.width = pct + '%';
-            progressBar.textContent = pct + '%';
+            progressBar.textContent = pctText;
+
+            var elapsed = (Date.now() - uploadStartTime) / 1000;
+            var speed = elapsed > 0 ? e.loaded / elapsed : 0;
+            var remaining = speed > 0 ? (e.total - e.loaded) / speed : 0;
+
+            var detail = formatBytes(e.loaded) + ' / ' + formatBytes(e.total);
+            if (speed > 0 && pct < 100) {
+                detail += '  \u00b7  ' + formatSpeed(speed) + '  \u00b7  ' + formatTime(remaining) + ' left';
+            }
+            uploadDetail.textContent = detail;
+
+            lockProgressInfo.textContent = pctText;
+            lockDetailInfo.textContent = detail;
         }
     });
 
     xhr.addEventListener('load', async function() {
+        isUploading = false;
+        hideLockOverlay();
+
         if (xhr.status === 200) {
             try {
                 var resp = JSON.parse(xhr.responseText);
@@ -129,14 +280,20 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
             uploadStatus.innerHTML = '<div class="alert alert-danger">Upload failed (status ' + xhr.status + ').</div>';
         }
         progressContainer.style.display = 'none';
-        spinner.style.display = 'none';
+        uploadDetail.style.display = 'none';
+        backBtn.style.display = '';
+        uploadBtn.style.display = 'none';
         if ('wakeLock' in navigator) { await releaseWakeLock(); }
     });
 
     xhr.addEventListener('error', async function() {
+        isUploading = false;
+        hideLockOverlay();
         uploadStatus.innerHTML = '<div class="alert alert-danger">Network error during upload.</div>';
         progressContainer.style.display = 'none';
-        spinner.style.display = 'none';
+        uploadDetail.style.display = 'none';
+        backBtn.style.display = '';
+        uploadBtn.style.display = 'none';
         if ('wakeLock' in navigator) { await releaseWakeLock(); }
     });
 

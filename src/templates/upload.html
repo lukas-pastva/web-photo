@@ -125,11 +125,31 @@ var lockDetailInfo = document.getElementById('lockDetailInfo');
 
 function showLockOverlay() {
     lockOverlay.classList.add('active');
+    // Push a dummy history entry so pressing Back stays on this page
+    history.pushState({uploadLock: true}, '');
+    window.addEventListener('popstate', onUploadPopState);
+    window.addEventListener('beforeunload', onUploadBeforeUnload);
 }
 
 function hideLockOverlay() {
     lockOverlay.classList.remove('active');
     resetSlider();
+    window.removeEventListener('popstate', onUploadPopState);
+    window.removeEventListener('beforeunload', onUploadBeforeUnload);
+}
+
+function onUploadPopState(e) {
+    if (isUploading) {
+        // Re-push state so user cannot navigate away
+        history.pushState({uploadLock: true}, '');
+    }
+}
+
+function onUploadBeforeUnload(e) {
+    if (isUploading) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
 }
 
 function resetSlider() {

@@ -734,11 +734,16 @@ def move_category():
 @app.route('/upload/<category>', methods=['GET', 'POST'])
 def upload_file(category):
     if request.method == 'POST':
+        import time as _time
         if 'photos[]' not in request.files:
             return jsonify({'status': 'fail', 'message': 'No file part'}), 400
         files = request.files.getlist('photos[]')
         if not files or files[0].filename == '':
             return jsonify({'status': 'fail', 'message': 'No selected files'}), 400
+        processed = []
+        skipped = []
+        total_size = 0
+        t_start = _time.time()
         for file in files:
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
@@ -746,8 +751,23 @@ def upload_file(category):
                 os.makedirs(dest_dir, exist_ok=True)
                 filepath = os.path.join(dest_dir, filename)
                 file.save(filepath)
+                fsize = os.path.getsize(filepath)
+                total_size += fsize
                 process_file(filepath, category)
-        return jsonify({'status': 'success', 'message': 'Files uploaded successfully.'}), 200
+                _, ext = os.path.splitext(filename)
+                ext = ext.lower()
+                ftype = 'video' if ext in VIDEO_EXTENSIONS else 'image'
+                processed.append({'name': filename, 'size': fsize, 'type': ftype})
+            elif file and file.filename:
+                skipped.append(secure_filename(file.filename))
+        elapsed = round(_time.time() - t_start, 1)
+        summary = {
+            'processed': processed,
+            'skipped': skipped,
+            'total_size': total_size,
+            'elapsed': elapsed,
+        }
+        return jsonify({'status': 'success', 'message': 'Files uploaded successfully.', 'summary': summary}), 200
     form = CategoryForm()
     return render_template('upload.html', category=category, form=form)
 

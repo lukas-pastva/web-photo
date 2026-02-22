@@ -105,6 +105,35 @@ function formatTime(seconds) {
     return h + 'h ' + m + 'm';
 }
 
+function buildSummaryHtml(summary, totalElapsed) {
+    if (!summary) return '<div class="alert alert-success">Files uploaded successfully.</div>';
+    var imgs = 0, vids = 0;
+    var files = summary.processed || [];
+    files.forEach(function(f) { if (f.type === 'video') vids++; else imgs++; });
+    var parts = [];
+    if (imgs > 0) parts.push(imgs + ' image' + (imgs !== 1 ? 's' : ''));
+    if (vids > 0) parts.push(vids + ' video' + (vids !== 1 ? 's' : ''));
+    var skipped = summary.skipped || [];
+
+    var h = '<div class="alert alert-success p-3">';
+    h += '<strong><i class="fas fa-check-circle"></i> Upload complete</strong>';
+    h += '<div class="mt-2" style="font-size:0.92em;">';
+    h += '<div>' + parts.join(', ') + ' &middot; ' + formatBytes(summary.total_size) + ' total</div>';
+    h += '<div>Server processing: ' + formatTime(summary.elapsed) + ' &middot; Total time: ' + formatTime(totalElapsed) + '</div>';
+    if (skipped.length > 0) {
+        h += '<div class="text-warning mt-1"><i class="fas fa-exclamation-triangle"></i> Skipped (unsupported): ' + skipped.join(', ') + '</div>';
+    }
+    h += '<details class="mt-2"><summary style="cursor:pointer;">File details</summary>';
+    h += '<table class="table table-sm table-borderless mt-1 mb-0" style="font-size:0.85em;">';
+    files.forEach(function(f) {
+        var icon = f.type === 'video' ? 'fa-video' : 'fa-image';
+        h += '<tr><td><i class="fas ' + icon + '"></i> ' + f.name + '</td><td class="text-end">' + formatBytes(f.size) + '</td></tr>';
+    });
+    h += '</table></details>';
+    h += '</div></div>';
+    return h;
+}
+
 // Show/hide upload button based on file selection
 var photosInput = document.getElementById('photos');
 var uploadBtn = document.getElementById('uploadBtn');
@@ -294,16 +323,31 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
         }
     });
 
+    // When all bytes are sent, switch to "processing" state
+    xhr.upload.addEventListener('loadend', function() {
+        progressBar.style.width = '100%';
+        progressBar.textContent = 'Processing on server\u2026';
+        progressBar.classList.remove('progress-bar-striped');
+        progressBar.classList.add('progress-bar-processing');
+        uploadDetail.textContent = 'All data sent \u00b7 server is resizing images and generating thumbnails\u2026';
+        lockProgressInfo.textContent = 'Processing\u2026';
+        lockDetailInfo.textContent = 'Server is processing your files';
+    });
+
     xhr.addEventListener('load', async function() {
         isUploading = false;
         hideLockOverlay();
         document.title = savedTitle;
+        progressBar.classList.remove('progress-bar-processing');
+        progressBar.classList.add('progress-bar-striped');
 
         if (xhr.status === 200) {
             try {
                 var resp = JSON.parse(xhr.responseText);
                 if (resp.status === 'success') {
-                    uploadStatus.innerHTML = '<div class="alert alert-success">' + resp.message + '</div>';
+                    var totalElapsed = ((Date.now() - uploadStartTime) / 1000);
+                    var html = buildSummaryHtml(resp.summary, totalElapsed);
+                    uploadStatus.innerHTML = html;
                     document.getElementById('uploadForm').reset();
                     document.getElementById('file-count').textContent = '';
                 } else {

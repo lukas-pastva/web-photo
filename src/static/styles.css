@@ -624,6 +624,16 @@ video.card-img-top {
     color: #e08080;
 }
 
+.progress-bar-processing {
+    animation: processing-pulse 1.5s ease-in-out infinite;
+    background-color: #17a2b8 !important;
+}
+
+@keyframes processing-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
 [data-theme="dark"] .progress {
     background-color: var(--bg-secondary);
 }

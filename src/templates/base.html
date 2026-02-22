@@ -17,7 +17,7 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <!-- Custom styles -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=12">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}?v=15">
 </head>
 <body>
     <nav class="navbar navbar-expand-md">
@@ -86,7 +86,16 @@
             return window.scrollY < 100;
         }
 
+        function isPageShort() {
+            return document.body.scrollHeight <= window.innerHeight + 50;
+        }
+
         function updateFab() {
+            if (isPageShort()) {
+                fab.style.display = 'none';
+                return;
+            }
+            fab.style.display = '';
             if (isAtTop()) {
                 fabIcon.className = 'fas fa-arrow-down';
                 fab.title = 'Scroll to bottom';
@@ -105,6 +114,7 @@
         });
 
         window.addEventListener('scroll', updateFab, { passive: true });
+        window.addEventListener('resize', updateFab, { passive: true });
         updateFab();
     })();
     </script>
@@ -115,7 +125,7 @@
         const toggle = document.getElementById('theme-toggle');
         const icon = document.getElementById('theme-icon');
         const html = document.documentElement;
-        const modes = ['light', 'dark', 'midnight'];
+        const modes = ['light', 'dark', 'midnight', 'ember'];
         let current = localStorage.getItem(STORAGE_KEY) || 'light';
 
         function applyTheme(mode) {
@@ -126,9 +136,12 @@
             } else if (mode === 'dark') {
                 icon.className = 'fas fa-moon';
                 toggle.title = 'Theme: Dark';
-            } else {
+            } else if (mode === 'midnight') {
                 icon.className = 'fas fa-star';
                 toggle.title = 'Theme: Midnight';
+            } else {
+                icon.className = 'fas fa-fire';
+                toggle.title = 'Theme: Ember';
             }
             localStorage.setItem(STORAGE_KEY, mode);
             current = mode;

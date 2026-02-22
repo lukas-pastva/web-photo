@@ -85,6 +85,35 @@
     --category-item-hover: #0a1020;
 }
 
+/* Ember theme - warm reddish dark, easy on eyes at night */
+[data-theme="ember"] {
+    --bg: #1a0f0f;
+    --bg-secondary: #140a0a;
+    --bg-card: #201212;
+    --text: #e0ccc0;
+    --text-muted: #a07868;
+    --border: #3a2020;
+    --navbar-bg: #120808;
+    --navbar-text: #e0ccc0;
+    --brand-bg: #b84c30;
+    --brand-text: #ffffff;
+    --tree-bg: #140a0a;
+    --tree-hover: #251515;
+    --card-shadow: 0 1px 4px rgba(180,60,30,0.15);
+    --input-bg: #201212;
+    --input-border: #3a2020;
+    --dialog-bg: #201212;
+    --log-bg: #0e0606;
+    --log-text: #c8a898;
+    --shimmer-a: rgba(30,15,15,0.9);
+    --shimmer-b: rgba(45,25,20,0.9);
+    --link-color: #e08060;
+    --upload-zone-bg: #140a0a;
+    --upload-zone-border: #5a3030;
+    --category-item-bg: transparent;
+    --category-item-hover: #251515;
+}
+
 /* ===== Global ===== */
 body {
     background-color: var(--bg);
@@ -105,9 +134,9 @@ a:hover { color: var(--link-color); opacity: 0.85; }
 }
 
 .navbar-brand {
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 600;
-    padding: 0.3rem 0.6rem;
+    padding: 0.4rem 0.75rem;
     background-color: var(--brand-bg);
     color: var(--brand-text) !important;
     border-radius: 0.25rem;
@@ -451,11 +480,6 @@ video.card-img-top {
     height: 100%;
 }
 
-.upload-submit-btn {
-    font-size: 1.1rem;
-    min-height: 48px;
-}
-
 /* ===== Admin sections ===== */
 .admin-section-header {
     font-size: 0.9rem;
@@ -660,14 +684,14 @@ video.card-img-top {
     font-size: 0.8rem;
     font-weight: 600;
     color: #999;
-    transition: all 0.3s ease;
+    transition: border-color 0.4s ease, background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
 }
 
 .upload-step-text {
     font-size: 0.72rem;
     color: #999;
     white-space: nowrap;
-    transition: color 0.3s ease;
+    transition: color 0.4s ease, font-weight 0.2s ease;
 }
 
 .upload-step-connector {
@@ -676,13 +700,31 @@ video.card-img-top {
     background: #ccc;
     margin: 0 4px;
     margin-bottom: 18px;
-    transition: background 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    transition: none;
+}
+
+.upload-step-connector::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0;
+    background: #28a745;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.upload-step-connector.completed::after {
+    width: 100%;
 }
 
 .upload-step.active .upload-step-num {
     border-color: #007bff;
     background: #007bff;
     color: #fff;
+    box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.2);
 }
 
 .upload-step.active .upload-step-text {
@@ -694,14 +736,49 @@ video.card-img-top {
     border-color: #28a745;
     background: #28a745;
     color: #fff;
+    box-shadow: none;
 }
 
 .upload-step.completed .upload-step-text {
     color: #28a745;
 }
 
-.upload-step-connector.completed {
-    background: #28a745;
+/* Pop animation for newly active step */
+@keyframes step-pop {
+    0%   { transform: scale(0.6); opacity: 0.5; }
+    50%  { transform: scale(1.2); }
+    70%  { transform: scale(0.95); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.step-anim-pop {
+    animation: step-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Check-flip animation for completed step */
+@keyframes step-check {
+    0%   { transform: scale(0.5) rotateY(90deg); opacity: 0; }
+    50%  { transform: scale(1.15) rotateY(0deg); opacity: 1; }
+    100% { transform: scale(1) rotateY(0deg); opacity: 1; }
+}
+
+.step-anim-check {
+    animation: step-check 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Subtle pulse on active step */
+@keyframes step-active-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.2); }
+    50%      { box-shadow: 0 0 0 6px rgba(0, 123, 255, 0.1); }
+}
+
+.upload-step.active .upload-step-num {
+    animation: step-active-pulse 2s ease-in-out infinite;
+}
+
+.upload-step.active .upload-step-num.step-anim-pop {
+    animation: step-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+               step-active-pulse 2s ease-in-out 0.45s infinite;
 }
 
 [data-theme="dark"] .upload-step-num {
@@ -767,6 +844,63 @@ video.card-img-top {
 
 [data-theme="midnight"] .text-muted {
     color: var(--text-muted) !important;
+}
+
+/* ===== Bootstrap overrides for ember ===== */
+[data-theme="ember"] .btn-outline-secondary,
+[data-theme="ember"] .btn-outline-primary,
+[data-theme="ember"] .btn-outline-info,
+[data-theme="ember"] .btn-outline-warning,
+[data-theme="ember"] .btn-outline-danger {
+    border-color: var(--border);
+    color: var(--text);
+}
+
+[data-theme="ember"] .table {
+    color: var(--text);
+}
+
+[data-theme="ember"] .table-hover tbody tr:hover {
+    color: var(--text);
+    background-color: var(--tree-hover);
+}
+
+[data-theme="ember"] .badge-light {
+    background-color: var(--bg-secondary);
+    color: var(--text);
+}
+
+[data-theme="ember"] .alert-success {
+    background-color: #1a1408;
+    border-color: #302810;
+    color: #b8a060;
+}
+
+[data-theme="ember"] .alert-danger {
+    background-color: #1a0808;
+    border-color: #381010;
+    color: #d06050;
+}
+
+[data-theme="ember"] .progress {
+    background-color: var(--bg-secondary);
+}
+
+[data-theme="ember"] .text-muted {
+    color: var(--text-muted) !important;
+}
+
+[data-theme="ember"] .upload-step-num {
+    border-color: #4a3030;
+    color: #806060;
+}
+
+[data-theme="ember"] .upload-step-text {
+    color: #806060;
+}
+
+[data-theme="ember"] .upload-step-connector {
+    background: #4a3030;
 }
 
 /* ===== Download overlay ===== */
@@ -1077,6 +1211,102 @@ video.card-img-top {
     }
 }
 
+/* ===== Upload file list (main page) ===== */
+.upload-file-list {
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background-color: var(--bg-secondary);
+    font-size: 0.82rem;
+}
+
+.upload-file-list-summary {
+    padding: 0.5rem 0.65rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.upload-file-list-summary i {
+    margin-right: 0.3rem;
+    opacity: 0.6;
+}
+
+.upload-file-list-body {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 0 0.65rem 0.5rem;
+}
+
+.upload-file-list-row {
+    display: flex;
+    align-items: center;
+    padding: 0.2rem 0;
+    gap: 0.4rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.upload-file-list-row:last-child {
+    border-bottom: none;
+}
+
+.upload-file-list-icon {
+    flex-shrink: 0;
+    width: 1.2em;
+    text-align: center;
+    opacity: 0.5;
+}
+
+.upload-file-list-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.upload-file-list-size {
+    flex-shrink: 0;
+    opacity: 0.6;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.78rem;
+}
+
+/* ===== Upload file list (lock overlay) ===== */
+.upload-lock-file-list {
+    text-align: left;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0.35rem;
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.78rem;
+}
+
+.upload-lock-file-list-summary {
+    padding: 0.45rem 0.6rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.upload-lock-file-list-summary i {
+    margin-right: 0.3rem;
+    opacity: 0.5;
+}
+
+.upload-lock-file-list-body {
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 0 0.6rem 0.45rem;
+}
+
+.upload-lock-file-list-body .upload-file-list-row {
+    color: rgba(255, 255, 255, 0.6);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
 /* ===== Upload lock overlay ===== */
 .upload-lock-overlay {
     position: fixed;
@@ -1183,6 +1413,42 @@ video.card-img-top {
 
 .upload-lock-thumb i {
     opacity: 0.9;
+}
+
+/* ===== Re-lock floating button ===== */
+.relock-fab {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 1.25rem;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--brand-bg, #007bff);
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.2s ease;
+}
+
+.relock-fab.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.relock-fab:hover {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.relock-fab:active {
+    transform: scale(0.93);
 }
 
 /* ===== Medium screens ===== */

@@ -634,6 +634,89 @@ video.card-img-top {
     50% { opacity: 0.6; }
 }
 
+/* Upload stepper */
+.upload-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 1rem 0;
+}
+
+.upload-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.upload-step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #999;
+    transition: all 0.3s ease;
+}
+
+.upload-step-text {
+    font-size: 0.72rem;
+    color: #999;
+    white-space: nowrap;
+    transition: color 0.3s ease;
+}
+
+.upload-step-connector {
+    width: 32px;
+    height: 2px;
+    background: #ccc;
+    margin: 0 4px;
+    margin-bottom: 18px;
+    transition: background 0.3s ease;
+}
+
+.upload-step.active .upload-step-num {
+    border-color: #007bff;
+    background: #007bff;
+    color: #fff;
+}
+
+.upload-step.active .upload-step-text {
+    color: #007bff;
+    font-weight: 600;
+}
+
+.upload-step.completed .upload-step-num {
+    border-color: #28a745;
+    background: #28a745;
+    color: #fff;
+}
+
+.upload-step.completed .upload-step-text {
+    color: #28a745;
+}
+
+.upload-step-connector.completed {
+    background: #28a745;
+}
+
+[data-theme="dark"] .upload-step-num {
+    border-color: #555;
+    color: #888;
+}
+
+[data-theme="dark"] .upload-step-text {
+    color: #888;
+}
+
+[data-theme="dark"] .upload-step-connector {
+    background: #555;
+}
+
 [data-theme="dark"] .progress {
     background-color: var(--bg-secondary);
 }

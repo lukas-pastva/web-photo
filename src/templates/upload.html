@@ -19,6 +19,24 @@
         </button>
     </form>
 
+    <!-- Three-step progress indicator -->
+    <div class="upload-steps" id="uploadSteps" style="display: none;">
+        <div class="upload-step" id="step1">
+            <div class="upload-step-num">1</div>
+            <div class="upload-step-text">Preparing</div>
+        </div>
+        <div class="upload-step-connector" id="connector12"></div>
+        <div class="upload-step" id="step2">
+            <div class="upload-step-num">2</div>
+            <div class="upload-step-text">Uploading</div>
+        </div>
+        <div class="upload-step-connector" id="connector23"></div>
+        <div class="upload-step" id="step3">
+            <div class="upload-step-num">3</div>
+            <div class="upload-step-text">Processing</div>
+        </div>
+    </div>
+
     <!-- Progress -->
     <div class="progress mt-3" style="height: 28px; display: none;" id="uploadProgressContainer">
         <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
@@ -55,6 +73,9 @@
 let wakeLock = null;
 let isUploading = false;
 let uploadStartTime = 0;
+let jobId = '';
+let firstProgressReceived = false;
+let pollInterval = null;
 
 async function requestWakeLock() {
     try {
@@ -103,6 +124,50 @@ function formatTime(seconds) {
     var h = Math.floor(seconds / 3600);
     var m = Math.ceil((seconds % 3600) / 60);
     return h + 'h ' + m + 'm';
+}
+
+function setActiveStep(n) {
+    for (var i = 1; i <= 3; i++) {
+        var el = document.getElementById('step' + i);
+        var num = el.querySelector('.upload-step-num');
+        el.classList.remove('active', 'completed');
+        if (i < n) {
+            el.classList.add('completed');
+            num.innerHTML = '<i class="fas fa-check"></i>';
+        } else if (i === n) {
+            el.classList.add('active');
+            num.textContent = i;
+        } else {
+            num.textContent = i;
+        }
+    }
+    document.getElementById('connector12').classList.toggle('completed', n > 1);
+    document.getElementById('connector23').classList.toggle('completed', n > 2);
+}
+
+function startProgressPolling() {
+    if (pollInterval) return;
+    pollInterval = setInterval(function() {
+        fetch('/upload_progress/' + jobId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'processing') {
+                    var text = 'Processing file ' + data.current + '/' + data.total + ': ' + data.filename;
+                    document.getElementById('uploadDetail').textContent = text;
+                    document.getElementById('lockDetailInfo').textContent = text;
+                    document.getElementById('lockProgressInfo').textContent = 'Step 3/3 \u00b7 ' + data.current + '/' + data.total;
+                    document.getElementById('uploadProgressBar').textContent = data.current + '/' + data.total + ' files';
+                }
+            })
+            .catch(function() {});
+    }, 800);
+}
+
+function stopProgressPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
 }
 
 function buildSummaryHtml(summary, totalElapsed) {
@@ -271,8 +336,11 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
     if (files.length === 0) return;
 
     isUploading = true;
+    firstProgressReceived = false;
+    jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
     var formData = new FormData();
+    formData.append('job_id', jobId);
     for (var i = 0; i < files.length; i++) {
         formData.append('photos[]', files[i]);
     }
@@ -286,23 +354,32 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
     var uploadStatus = document.getElementById('uploadStatus');
     var backBtn = document.getElementById('backBtn');
 
-    progressContainer.style.display = 'flex';
+    document.getElementById('uploadSteps').style.display = 'flex';
+    setActiveStep(1);
+    progressContainer.style.display = 'none';
     uploadDetail.style.display = 'block';
     progressBar.style.width = '0%';
     progressBar.textContent = '0.0%';
-    uploadDetail.textContent = '';
+    uploadDetail.textContent = 'Your device is preparing photos\u2026';
     uploadStatus.innerHTML = '';
     uploadBtn.style.display = 'none';
     backBtn.style.display = 'none';
     uploadStartTime = Date.now();
 
     // Auto-activate lock overlay on upload start
+    lockProgressInfo.textContent = 'Step 1/3 \u00b7 Preparing';
+    lockDetailInfo.textContent = 'Your device is preparing photos';
     showLockOverlay();
 
     if ('wakeLock' in navigator) { requestWakeLock(); }
 
     xhr.upload.addEventListener('progress', function(e) {
         if (e.lengthComputable) {
+            if (!firstProgressReceived) {
+                firstProgressReceived = true;
+                setActiveStep(2);
+                progressContainer.style.display = 'flex';
+            }
             var pct = (e.loaded / e.total) * 100;
             var pctText = pct.toFixed(1) + '%';
             progressBar.style.width = pct + '%';
@@ -318,24 +395,28 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
             }
             uploadDetail.textContent = detail;
 
-            lockProgressInfo.textContent = pctText;
+            lockProgressInfo.textContent = 'Step 2/3 \u00b7 ' + pctText;
             lockDetailInfo.textContent = detail;
         }
     });
 
     // When all bytes are sent, switch to "processing" state
     xhr.upload.addEventListener('loadend', function() {
+        setActiveStep(3);
+        progressContainer.style.display = 'flex';
         progressBar.style.width = '100%';
         progressBar.textContent = 'Processing on server\u2026';
         progressBar.classList.remove('progress-bar-striped');
         progressBar.classList.add('progress-bar-processing');
         uploadDetail.textContent = 'All data sent \u00b7 server is resizing images and generating thumbnails\u2026';
-        lockProgressInfo.textContent = 'Processing\u2026';
+        lockProgressInfo.textContent = 'Step 3/3 \u00b7 Processing';
         lockDetailInfo.textContent = 'Server is processing your files';
+        startProgressPolling();
     });
 
     xhr.addEventListener('load', async function() {
         isUploading = false;
+        stopProgressPolling();
         hideLockOverlay();
         document.title = savedTitle;
         progressBar.classList.remove('progress-bar-processing');
@@ -363,11 +444,13 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
         uploadDetail.style.display = 'none';
         backBtn.style.display = '';
         uploadBtn.style.display = 'none';
+        document.getElementById('uploadSteps').style.display = 'none';
         if ('wakeLock' in navigator) { await releaseWakeLock(); }
     });
 
     xhr.addEventListener('error', async function() {
         isUploading = false;
+        stopProgressPolling();
         hideLockOverlay();
         document.title = savedTitle;
         uploadStatus.innerHTML = '<div class="alert alert-danger">Network error during upload.</div>';
@@ -375,6 +458,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
         uploadDetail.style.display = 'none';
         backBtn.style.display = '';
         uploadBtn.style.display = 'none';
+        document.getElementById('uploadSteps').style.display = 'none';
         if ('wakeLock' in navigator) { await releaseWakeLock(); }
     });
 

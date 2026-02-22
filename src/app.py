@@ -14,6 +14,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
 import json
+import threading
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +43,10 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key')
 
 # Ensure the upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Upload progress tracking (thread-safe)
+_upload_jobs = {}
+_upload_jobs_lock = threading.Lock()
 
 IMAGE_EXTENSIONS = {'.heic', '.heif', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.dng', '.tiff', '.tif'}
 VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.m4v', '.3gp'}
@@ -743,8 +748,10 @@ def upload_file(category):
         processed = []
         skipped = []
         total_size = 0
+        job_id = request.form.get('job_id', '')
+        total_files = len(files)
         t_start = _time.time()
-        for file in files:
+        for idx, file in enumerate(files):
             if file and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
                 dest_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
@@ -753,6 +760,14 @@ def upload_file(category):
                 file.save(filepath)
                 fsize = os.path.getsize(filepath)
                 total_size += fsize
+                if job_id:
+                    with _upload_jobs_lock:
+                        _upload_jobs[job_id] = {
+                            'status': 'processing',
+                            'current': idx + 1,
+                            'total': total_files,
+                            'filename': filename,
+                        }
                 process_file(filepath, category)
                 _, ext = os.path.splitext(filename)
                 ext = ext.lower()
@@ -760,6 +775,9 @@ def upload_file(category):
                 processed.append({'name': filename, 'size': fsize, 'type': ftype})
             elif file and file.filename:
                 skipped.append(secure_filename(file.filename))
+        if job_id:
+            with _upload_jobs_lock:
+                _upload_jobs.pop(job_id, None)
         elapsed = round(_time.time() - t_start, 1)
         summary = {
             'processed': processed,
@@ -770,6 +788,14 @@ def upload_file(category):
         return jsonify({'status': 'success', 'message': 'Files uploaded successfully.', 'summary': summary}), 200
     form = CategoryForm()
     return render_template('upload.html', category=category, form=form)
+
+@app.route('/upload_progress/<job_id>')
+def upload_progress_view(job_id):
+    with _upload_jobs_lock:
+        data = _upload_jobs.get(job_id)
+    if data:
+        return jsonify(data)
+    return jsonify({'status': 'unknown'})
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):

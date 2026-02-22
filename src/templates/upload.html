@@ -70,6 +70,21 @@ async function releaseWakeLock() {
     }
 }
 
+// Re-acquire wake lock and warn user when switching tabs during upload
+var savedTitle = document.title;
+document.addEventListener('visibilitychange', function() {
+    if (!isUploading) return;
+    if (document.visibilityState === 'visible') {
+        // Came back — restore title and re-acquire wake lock (it gets released when tab is hidden)
+        document.title = savedTitle;
+        if ('wakeLock' in navigator) { requestWakeLock(); }
+    } else {
+        // Left the tab — change title so it's visible in tab switcher
+        document.title = '\u26a0 Upload in progress!';
+    }
+});
+
+
 function formatBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
@@ -282,6 +297,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
     xhr.addEventListener('load', async function() {
         isUploading = false;
         hideLockOverlay();
+        document.title = savedTitle;
 
         if (xhr.status === 200) {
             try {
@@ -309,6 +325,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
     xhr.addEventListener('error', async function() {
         isUploading = false;
         hideLockOverlay();
+        document.title = savedTitle;
         uploadStatus.innerHTML = '<div class="alert alert-danger">Network error during upload.</div>';
         progressContainer.style.display = 'none';
         uploadDetail.style.display = 'none';

@@ -49,7 +49,7 @@ _upload_jobs = {}
 _upload_jobs_lock = threading.Lock()
 
 IMAGE_EXTENSIONS = {'.heic', '.heif', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.dng', '.tiff', '.tif'}
-VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.m4v', '.3gp'}
+VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.m4v', '.3gp', '.mpg', '.mpeg'}
 ALLOWED_EXTENSIONS = {e.lstrip('.') for e in IMAGE_EXTENSIONS | VIDEO_EXTENSIONS}
 
 def allowed_file(filename):

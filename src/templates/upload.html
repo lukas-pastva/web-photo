@@ -523,7 +523,16 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
                 uploadStatus.innerHTML = '<div class="alert alert-danger">Upload completed but response error.</div>';
             }
         } else {
-            uploadStatus.innerHTML = '<div class="alert alert-danger">Upload failed (status ' + xhr.status + ').</div>';
+            var errMsg = 'Upload failed (HTTP ' + xhr.status + ').';
+            try {
+                var errResp = JSON.parse(xhr.responseText);
+                if (errResp.message) errMsg += ' ' + errResp.message;
+            } catch(ignored) {
+                if (xhr.status === 413) errMsg += ' File too large — check server/proxy upload size limits (e.g. nginx client_max_body_size).';
+                else if (xhr.status === 502 || xhr.status === 504) errMsg += ' Server timeout — the file may be too large or the server took too long to process it.';
+                else if (xhr.responseText) errMsg += ' ' + xhr.responseText.substring(0, 200);
+            }
+            uploadStatus.innerHTML = '<div class="alert alert-danger">' + errMsg + '</div>';
         }
         progressContainer.style.display = 'none';
         uploadDetail.style.display = 'none';
@@ -539,7 +548,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
         hideLockOverlay();
         relockBtn.classList.remove('active');
         document.title = savedTitle;
-        uploadStatus.innerHTML = '<div class="alert alert-danger">Network error during upload.</div>';
+        uploadStatus.innerHTML = '<div class="alert alert-danger">Network error during upload. This can happen if the file is too large for the server/proxy, the connection was interrupted, or the server timed out.</div>';
         progressContainer.style.display = 'none';
         uploadDetail.style.display = 'none';
         backBtn.style.display = '';

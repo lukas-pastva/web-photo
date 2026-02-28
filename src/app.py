@@ -35,8 +35,8 @@ IMAGE_QUALITY = int(os.environ.get('IMAGE_QUALITY', '100'))
 # Configurable thumbnail quality (percentage)
 THUMBNAIL_QUALITY = int(os.environ.get('THUMBNAIL_QUALITY', '85'))
 
-# Set maximum upload size to 5GB
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 * 1024
+# No upload size limit
+app.config['MAX_CONTENT_LENGTH'] = None
 
 # Secret key for CSRF protection
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key')
@@ -1037,7 +1037,7 @@ def download_single(category, size, filename):
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_size_error(e):
-    return jsonify({'status': 'fail', 'message': 'File too large. Maximum upload size is 5GB.'}), 413
+    return jsonify({'status': 'fail', 'message': 'File too large. The server or reverse proxy rejected the upload. Check your nginx/ingress body size limits.'}), 413
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)

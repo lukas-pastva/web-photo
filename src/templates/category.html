@@ -132,7 +132,7 @@
   <div class="tab-pane fade" id="videos-pane" role="tabpanel">
     <div class="row gallery-grid" id="videos-grid">
       {% for video in videos %}
-      <div class="col-4 col-sm-3 col-md-3 col-lg-2">
+      <div class="col-4 col-sm-3 col-md-3 col-lg-2 gallery-item-col" data-filename="{{ video.filename }}">
         <div class="card media-card">
           <div class="thumb-container loading video-poster" data-video-src="{{ url_for('uploaded_file', filename=category + '/source/' + video.filename) }}">
             <img src="{{ video.poster }}"
@@ -145,6 +145,7 @@
             <div class="thumb-spinner spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></div>
             <div class="play-overlay"><i class="fas fa-play"></i></div>
           </div>
+          <input type="checkbox" class="move-checkbox" data-filename="{{ video.filename }}" style="display:none;">
           <div class="card-actions">
             <a href="{{ url_for('download_single', category=category, size='source', filename=video.filename) }}" class="btn btn-outline-primary btn-xs" download title="Download"><i class="fas fa-download"></i></a>
             <form action="{{ url_for('delete_photo', category=category, filename=video.filename) }}" method="post" class="mb-0 delete-form" data-filename="{{ video.filename }}">
@@ -356,6 +357,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // ===== Video poster -> player =====
     document.querySelectorAll('.video-poster').forEach(function(container) {
         container.addEventListener('click', function() {
+            if (moveMode) return;
             var src = container.getAttribute('data-video-src');
             if (!src) return;
             var video = document.createElement('video');
@@ -514,7 +516,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cb.addEventListener('change', updateMoveCount);
     });
 
-    moveConfirm.addEventListener('click', function() {
+    moveConfirm.addEventListener('click', async function() {
         var dest = moveDest.value;
         if (!dest) return;
         var selected = [];
@@ -526,37 +528,40 @@ document.addEventListener('DOMContentLoaded', function() {
         moveConfirm.disabled = true;
         moveConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 0/' + total;
 
-        fetch('/photos/move', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                source_category: CATEGORY,
-                dest_category: dest,
-                filenames: selected
-            })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.status === 'success' || data.status === 'partial') {
-                var moved = data.moved || [];
-                moved.forEach(function(fname, i) {
-                    var col = document.querySelector('.gallery-item-col[data-filename="' + fname + '"]');
-                    if (col) col.remove();
-                    moveConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (i + 1) + '/' + total;
+        var errors = 0;
+        for (var idx = 0; idx < selected.length; idx++) {
+            try {
+                var r = await fetch('/photos/move', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        source_category: CATEGORY,
+                        dest_category: dest,
+                        filenames: [selected[idx]]
+                    })
                 });
-                updateImageCount();
-                exitMoveMode();
-            } else {
-                alert(data.message || 'Move failed.');
+                var data = await r.json();
+                if (data.status === 'success' || data.status === 'partial') {
+                    var moved = data.moved || [];
+                    moved.forEach(function(fname) {
+                        var col = document.querySelector('.gallery-item-col[data-filename="' + fname + '"]');
+                        if (col) col.remove();
+                    });
+                } else {
+                    errors++;
+                }
+            } catch(e) {
+                errors++;
             }
-            moveConfirm.disabled = false;
-            moveConfirm.innerHTML = '<i class="fas fa-check"></i> Move';
-        })
-        .catch(function() {
-            alert('Error moving photos.');
-            moveConfirm.disabled = false;
-            moveConfirm.innerHTML = '<i class="fas fa-check"></i> Move';
-        });
+            moveConfirm.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (idx + 1) + '/' + total;
+        }
+        updateImageCount();
+        if (errors > 0) {
+            alert(errors + ' photo(s) failed to move.');
+        }
+        exitMoveMode();
+        moveConfirm.disabled = false;
+        moveConfirm.innerHTML = '<i class="fas fa-check"></i> Move';
     });
 
     // ===== Select All / Deselect All =====
@@ -581,7 +586,7 @@ document.addEventListener('DOMContentLoaded', function() {
         bulkDeleteDialog.showModal();
     });
 
-    confirmBulkDelete.addEventListener('click', function() {
+    confirmBulkDelete.addEventListener('click', async function() {
         var selected = [];
         document.querySelectorAll('.move-checkbox:checked').forEach(function(cb) {
             selected.push(cb.getAttribute('data-filename'));
@@ -592,42 +597,43 @@ document.addEventListener('DOMContentLoaded', function() {
         deleteSelected.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 0/' + total;
         bulkDeleteDialog.close();
 
-        fetch('/photos/delete', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                category: CATEGORY,
-                filenames: selected
-            })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (data.status === 'success' || data.status === 'partial') {
-                var deleted = data.deleted || [];
-                deleted.forEach(function(fname, i) {
-                    var col = document.querySelector('.gallery-item-col[data-filename="' + fname + '"]');
-                    if (col) col.remove();
-                    deleteSelected.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (i + 1) + '/' + total;
+        var errors = 0;
+        for (var idx = 0; idx < selected.length; idx++) {
+            try {
+                var r = await fetch('/photos/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        category: CATEGORY,
+                        filenames: [selected[idx]]
+                    })
                 });
-                updateImageCount();
-                updateMoveCount();
-            } else {
-                alert(data.message || 'Delete failed.');
+                var data = await r.json();
+                if (data.status === 'success' || data.status === 'partial') {
+                    var deleted = data.deleted || [];
+                    deleted.forEach(function(fname) {
+                        var col = document.querySelector('.gallery-item-col[data-filename="' + fname + '"]');
+                        if (col) col.remove();
+                    });
+                } else {
+                    errors++;
+                }
+            } catch(e) {
+                errors++;
             }
-            deleteSelected.disabled = false;
-            deleteSelected.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
-        })
-        .catch(function() {
-            alert('Error deleting photos.');
-            deleteSelected.disabled = false;
-            deleteSelected.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
-            bulkDeleteDialog.close();
-        });
+            deleteSelected.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (idx + 1) + '/' + total;
+        }
+        updateImageCount();
+        updateMoveCount();
+        if (errors > 0) {
+            alert(errors + ' photo(s) failed to delete.');
+        }
+        deleteSelected.disabled = false;
+        deleteSelected.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
     });
 
     // ===== Mobile Drag-to-Select =====
-    (function() {
-        var gallery = document.getElementById('gallery');
+    function initDragToSelect(container) {
         var dragging = false;
         var dragAction = null; // 'select' or 'deselect'
         var startX = 0, startY = 0;
@@ -635,7 +641,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var isHorizontal = false;    // true = drag-to-select, false = scroll
         var toggled = new Set();
 
-        gallery.addEventListener('touchstart', function(e) {
+        container.addEventListener('touchstart', function(e) {
             if (!moveMode) return;
             if (e.touches.length !== 1) return;
             var touch = e.touches[0];
@@ -659,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, {passive: true});
 
-        gallery.addEventListener('touchmove', function(e) {
+        container.addEventListener('touchmove', function(e) {
             if (!dragging || !moveMode) return;
             var touch = e.touches[0];
             if (!directionLocked) {
@@ -691,7 +697,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, {passive: false});
 
-        gallery.addEventListener('touchend', function() {
+        container.addEventListener('touchend', function() {
             dragging = false;
             dragAction = null;
             directionLocked = false;
@@ -699,14 +705,17 @@ document.addEventListener('DOMContentLoaded', function() {
             toggled.clear();
         });
 
-        gallery.addEventListener('touchcancel', function() {
+        container.addEventListener('touchcancel', function() {
             dragging = false;
             dragAction = null;
             directionLocked = false;
             isHorizontal = false;
             toggled.clear();
         });
-    })();
+    }
+    initDragToSelect(document.getElementById('gallery'));
+    var videosGrid = document.getElementById('videos-grid');
+    if (videosGrid) initDragToSelect(videosGrid);
 });
 </script>
 {% endblock %}

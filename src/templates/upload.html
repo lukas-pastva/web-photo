@@ -18,9 +18,9 @@
 
     <!-- Take Photo button -->
     <div class="mt-2 mb-3">
-        <button type="button" class="btn btn-outline-primary btn-block" id="takePhotoBtn">
+        <label for="cameraInput" class="btn btn-outline-primary btn-block mb-0" id="takePhotoBtn" style="cursor:pointer;">
             <i class="fas fa-camera"></i> Take Photo
-        </button>
+        </label>
         <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
     </div>
 
@@ -609,10 +609,12 @@ var capturedFile = null;
 var capturedExt = '';
 var cameraPhotoCounter = 1;
 
-takePhotoBtn.addEventListener('click', function() {
-    if (isUploading) return;
+takePhotoBtn.addEventListener('click', function(e) {
+    if (isUploading) {
+        e.preventDefault();
+        return;
+    }
     cameraInput.value = '';
-    cameraInput.click();
 });
 
 cameraInput.addEventListener('change', function() {

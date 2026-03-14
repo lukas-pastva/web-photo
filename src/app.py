@@ -825,6 +825,63 @@ def download_category(category):
     zip_buffer.seek(0)
     return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'{category}_{size}_files.zip')
 
+@app.route('/download_pdf/<category>')
+def download_pdf(category):
+    size = request.args.get('size', 'largest')
+    paper = request.args.get('paper', 'A4')
+    valid_sizes = ['source', 'largest', 'medium']
+    if size not in valid_sizes:
+        return jsonify({'status': 'fail', 'message': 'Invalid size parameter.'}), 400
+
+    from reportlab.lib.pagesizes import A4, A3, A5, letter, legal, landscape, portrait
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas as pdf_canvas
+
+    paper_sizes = {
+        'A3': A3, 'A4': A4, 'A5': A5,
+        'Letter': letter, 'Legal': legal,
+        'A3-L': landscape(A3), 'A4-L': landscape(A4), 'A5-L': landscape(A5),
+        'Letter-L': landscape(letter), 'Legal-L': landscape(legal),
+    }
+    page_size = paper_sizes.get(paper, A4)
+
+    images_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size)
+    if not os.path.exists(images_dir):
+        return jsonify({'status': 'fail', 'message': 'Size not found.'}), 404
+
+    image_filenames = sorted([f for f in os.listdir(images_dir) if os.path.splitext(f)[1].lower() not in VIDEO_EXTENSIONS])
+    if not image_filenames:
+        return jsonify({'status': 'fail', 'message': 'No images to download.'}), 404
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for filename in image_filenames:
+            file_path = os.path.join(images_dir, filename)
+            try:
+                img = Image.open(file_path)
+                img_w, img_h = img.size
+                pw, ph = page_size
+                scale = min(pw / img_w, ph / img_h)
+                draw_w, draw_h = img_w * scale, img_h * scale
+                x = (pw - draw_w) / 2
+                y = (ph - draw_h) / 2
+
+                pdf_buf = io.BytesIO()
+                c = pdf_canvas.Canvas(pdf_buf, pagesize=page_size)
+                img_reader = ImageReader(file_path)
+                c.drawImage(img_reader, x, y, draw_w, draw_h, preserveAspectRatio=True)
+                c.save()
+                pdf_buf.seek(0)
+
+                pdf_name = os.path.splitext(filename)[0] + '.pdf'
+                zf.writestr(pdf_name, pdf_buf.read())
+            except Exception as e:
+                logger.error(f'PDF conversion failed for {filename}: {e}')
+                continue
+
+    zip_buffer.seek(0)
+    return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'{category}_pdf_{paper}.zip')
+
 @app.route('/download_videos/<category>')
 def download_videos(category):
     source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')

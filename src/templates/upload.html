@@ -16,6 +16,43 @@
         <div id="file-count" class="text-muted small mt-1 mb-2"></div>
     </form>
 
+    <!-- Take Photo button -->
+    <div class="mt-2 mb-3">
+        <button type="button" class="btn btn-outline-primary btn-block" id="takePhotoBtn">
+            <i class="fas fa-camera"></i> Take Photo
+        </button>
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;">
+    </div>
+
+    <!-- Filename confirmation modal -->
+    <div class="modal fade" id="filenameModal" tabindex="-1" role="dialog" data-backdrop="static" data-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Filename</h5>
+                </div>
+                <div class="modal-body">
+                    <div id="cameraPreview" class="mb-3 text-center">
+                        <img id="cameraPreviewImg" style="max-width:100%;max-height:200px;border-radius:6px;" alt="Preview">
+                    </div>
+                    <div class="form-group">
+                        <label for="filenameDate" class="small text-muted">Date prefix</label>
+                        <input type="text" class="form-control form-control-sm" id="filenameDate" readonly style="background:#f0f0f0;">
+                    </div>
+                    <div class="form-group mt-2">
+                        <label for="filenameSuffix">Filename suffix</label>
+                        <input type="text" class="form-control" id="filenameSuffix" placeholder="e.g. 01-sunset" autocomplete="off">
+                    </div>
+                    <div class="small text-muted mt-1">Final filename: <strong id="filenamePreviewText"></strong></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="filenameCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="filenameConfirmBtn">Upload</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Three-step progress indicator -->
     <div class="upload-steps" id="uploadSteps" style="display: none;">
         <div class="upload-step" id="step1">
@@ -558,6 +595,227 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
     });
 
     xhr.send(formData);
+});
+
+// === Take Photo with Camera ===
+var cameraInput = document.getElementById('cameraInput');
+var takePhotoBtn = document.getElementById('takePhotoBtn');
+var filenameModal = $('#filenameModal');
+var filenameDateInput = document.getElementById('filenameDate');
+var filenameSuffixInput = document.getElementById('filenameSuffix');
+var filenamePreviewText = document.getElementById('filenamePreviewText');
+var cameraPreviewImg = document.getElementById('cameraPreviewImg');
+var capturedFile = null;
+var capturedExt = '';
+var cameraPhotoCounter = 1;
+
+takePhotoBtn.addEventListener('click', function() {
+    if (isUploading) return;
+    cameraInput.value = '';
+    cameraInput.click();
+});
+
+cameraInput.addEventListener('change', function() {
+    if (!this.files || this.files.length === 0) return;
+    capturedFile = this.files[0];
+
+    // Determine extension from captured file
+    var origName = capturedFile.name || 'photo.jpg';
+    var dotIdx = origName.lastIndexOf('.');
+    capturedExt = dotIdx >= 0 ? origName.substring(dotIdx) : '.jpg';
+
+    // Generate date prefix YYMMDD
+    var now = new Date();
+    var yy = String(now.getFullYear()).slice(-2);
+    var mm = String(now.getMonth() + 1).padStart(2, '0');
+    var dd = String(now.getDate()).padStart(2, '0');
+    var datePrefix = yy + mm + dd;
+
+    // Default suffix is zero-padded counter
+    var suffix = String(cameraPhotoCounter).padStart(2, '0');
+
+    filenameDateInput.value = datePrefix;
+    filenameSuffixInput.value = suffix;
+    updateFilenamePreview();
+
+    // Show preview
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        cameraPreviewImg.src = e.target.result;
+    };
+    reader.readAsDataURL(capturedFile);
+
+    filenameModal.modal('show');
+
+    // Focus the suffix input after modal opens
+    filenameModal.one('shown.bs.modal', function() {
+        filenameSuffixInput.focus();
+        filenameSuffixInput.select();
+    });
+});
+
+function updateFilenamePreview() {
+    var date = filenameDateInput.value;
+    var suffix = filenameSuffixInput.value.trim() || '01';
+    filenamePreviewText.textContent = date + '-' + suffix + capturedExt;
+}
+
+filenameSuffixInput.addEventListener('input', updateFilenamePreview);
+
+document.getElementById('filenameCancelBtn').addEventListener('click', function() {
+    filenameModal.modal('hide');
+    capturedFile = null;
+    cameraInput.value = '';
+});
+
+document.getElementById('filenameConfirmBtn').addEventListener('click', function() {
+    if (!capturedFile) return;
+
+    var date = filenameDateInput.value;
+    var suffix = filenameSuffixInput.value.trim() || '01';
+    var finalName = date + '-' + suffix + capturedExt;
+
+    // Create a new File with the chosen name
+    var renamedFile = new File([capturedFile], finalName, { type: capturedFile.type });
+
+    filenameModal.modal('hide');
+    cameraPhotoCounter++;
+
+    // Trigger upload with the renamed file
+    isUploading = true;
+    firstProgressReceived = false;
+    jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+    var formData = new FormData();
+    formData.append('job_id', jobId);
+    formData.append('photos[]', renamedFile);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', document.getElementById('uploadForm').action, true);
+
+    var progressContainer = document.getElementById('uploadProgressContainer');
+    var progressBar = document.getElementById('uploadProgressBar');
+    var uploadDetail = document.getElementById('uploadDetail');
+    var uploadStatus = document.getElementById('uploadStatus');
+    var backBtn = document.getElementById('backBtn');
+
+    document.getElementById('uploadSteps').style.display = 'flex';
+    setActiveStep(1);
+    progressContainer.style.display = 'none';
+    uploadDetail.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressBar.textContent = '0.0%';
+    uploadDetail.textContent = 'Your device is preparing photos\u2026';
+    uploadStatus.innerHTML = '';
+    backBtn.style.display = 'none';
+    uploadStartTime = Date.now();
+    showFileLists([renamedFile]);
+
+    lockProgressInfo.textContent = 'Step 1/3 \u00b7 Preparing';
+    lockDetailInfo.textContent = 'Your device is preparing photos';
+    showLockOverlay();
+
+    if ('wakeLock' in navigator) { requestWakeLock(); }
+
+    xhr.upload.addEventListener('progress', function(e) {
+        if (e.lengthComputable) {
+            if (!firstProgressReceived) {
+                firstProgressReceived = true;
+                setActiveStep(2);
+                progressContainer.style.display = 'flex';
+            }
+            var pct = (e.loaded / e.total) * 100;
+            var pctText = pct.toFixed(1) + '%';
+            progressBar.style.width = pct + '%';
+            progressBar.textContent = pctText;
+
+            var elapsed = (Date.now() - uploadStartTime) / 1000;
+            var speed = elapsed > 0 ? e.loaded / elapsed : 0;
+            var remaining = speed > 0 ? (e.total - e.loaded) / speed : 0;
+
+            var detail = formatBytes(e.loaded) + ' / ' + formatBytes(e.total);
+            if (speed > 0 && pct < 100) {
+                detail += '  \u00b7  ' + formatSpeed(speed) + '  \u00b7  ' + formatTime(remaining) + ' left';
+            }
+            uploadDetail.textContent = detail;
+            lockProgressInfo.textContent = 'Step 2/3 \u00b7 ' + pctText;
+            lockDetailInfo.textContent = detail;
+        }
+    });
+
+    xhr.upload.addEventListener('loadend', function() {
+        setActiveStep(3);
+        progressContainer.style.display = 'flex';
+        progressBar.style.width = '100%';
+        progressBar.textContent = 'Processing on server\u2026';
+        progressBar.classList.remove('progress-bar-striped');
+        progressBar.classList.add('progress-bar-processing');
+        uploadDetail.textContent = 'All data sent \u00b7 server is resizing images and generating thumbnails\u2026';
+        lockProgressInfo.textContent = 'Step 3/3 \u00b7 Processing';
+        lockDetailInfo.textContent = 'Server is processing your files';
+        startProgressPolling();
+    });
+
+    xhr.addEventListener('load', async function() {
+        isUploading = false;
+        stopProgressPolling();
+        hideLockOverlay();
+        relockBtn.classList.remove('active');
+        document.title = savedTitle;
+        progressBar.classList.remove('progress-bar-processing');
+        progressBar.classList.add('progress-bar-striped');
+
+        if (xhr.status === 200) {
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                if (resp.status === 'success') {
+                    var totalElapsed = ((Date.now() - uploadStartTime) / 1000);
+                    var html = buildSummaryHtml(resp.summary, totalElapsed);
+                    uploadStatus.innerHTML = html;
+                } else {
+                    uploadStatus.innerHTML = '<div class="alert alert-danger">' + resp.message + '</div>';
+                }
+            } catch(e) {
+                uploadStatus.innerHTML = '<div class="alert alert-danger">Upload completed but response error.</div>';
+            }
+        } else {
+            var errMsg = 'Upload failed (HTTP ' + xhr.status + ').';
+            try {
+                var errResp = JSON.parse(xhr.responseText);
+                if (errResp.message) errMsg += ' ' + errResp.message;
+            } catch(ignored) {
+                if (xhr.status === 413) errMsg += ' File too large.';
+                else if (xhr.status === 502 || xhr.status === 504) errMsg += ' Server timeout.';
+                else if (xhr.responseText) errMsg += ' ' + xhr.responseText.substring(0, 200);
+            }
+            uploadStatus.innerHTML = '<div class="alert alert-danger">' + errMsg + '</div>';
+        }
+        progressContainer.style.display = 'none';
+        uploadDetail.style.display = 'none';
+        backBtn.style.display = '';
+        hideFileLists();
+        document.getElementById('uploadSteps').style.display = 'none';
+        if ('wakeLock' in navigator) { await releaseWakeLock(); }
+    });
+
+    xhr.addEventListener('error', async function() {
+        isUploading = false;
+        stopProgressPolling();
+        hideLockOverlay();
+        relockBtn.classList.remove('active');
+        document.title = savedTitle;
+        uploadStatus.innerHTML = '<div class="alert alert-danger">Network error during upload.</div>';
+        progressContainer.style.display = 'none';
+        uploadDetail.style.display = 'none';
+        backBtn.style.display = '';
+        hideFileLists();
+        document.getElementById('uploadSteps').style.display = 'none';
+        if ('wakeLock' in navigator) { await releaseWakeLock(); }
+    });
+
+    xhr.send(formData);
+    capturedFile = null;
+    cameraInput.value = '';
 });
 </script>
 {% endblock %}

@@ -680,19 +680,11 @@ async function startCamera() {
         cameraVideo.srcObject = cameraStream;
         await cameraVideo.play();
     } catch (err) {
-        var msg = 'Could not access camera.';
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-            msg = 'Camera permission was denied. Please allow camera access in your browser settings and try again.';
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-            msg = 'No camera found on this device.';
-        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-            msg = 'Camera is in use by another app. Close other camera apps and try again.';
-        } else if (err.name === 'OverconstrainedError') {
-            msg = 'Camera does not support the requested settings.';
-        } else {
-            msg = 'Could not access camera: ' + (err.message || err.name);
-        }
-        showCameraError(msg);
+        // getUserMedia failed — fall back to native system camera
+        console.log('getUserMedia failed (' + err.name + '), falling back to system camera');
+        closeCameraOverlay();
+        cameraFallbackInput.click();
+        return;
     }
 }
 

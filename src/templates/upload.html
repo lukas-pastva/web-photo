@@ -28,6 +28,8 @@
     <!-- Full-screen camera overlay -->
     <div id="cameraOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:9999; flex-direction:column;">
         <video id="cameraVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+        <!-- A4 crop guide overlay -->
+        <div id="a4Guide" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); border:2px dashed rgba(255,255,255,0.6); pointer-events:none; box-sizing:border-box;"></div>
         <!-- Camera error message -->
         <div id="cameraError" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; text-align:center; padding:20px; max-width:90%;">
             <i class="fas fa-exclamation-triangle fa-2x mb-3" style="color:#ffc107;"></i>
@@ -732,10 +734,29 @@ async function startCamera() {
     }
 }
 
+function sizeA4Guide() {
+    var guide = document.getElementById('a4Guide');
+    var ow = cameraOverlay.clientWidth;
+    var oh = cameraOverlay.clientHeight;
+    // A4 ratio: 210/297 ≈ 0.7071
+    var a4Ratio = 210 / 297;
+    var gw, gh;
+    if (oh * a4Ratio <= ow) {
+        gh = oh * 0.9;
+        gw = gh * a4Ratio;
+    } else {
+        gw = ow * 0.9;
+        gh = gw / a4Ratio;
+    }
+    guide.style.width = Math.round(gw) + 'px';
+    guide.style.height = Math.round(gh) + 'px';
+}
+
 function openCameraOverlay() {
     cameraOverlay.style.display = 'flex';
     hideCameraError();
     startCamera();
+    setTimeout(sizeA4Guide, 100);
 }
 
 function closeCameraOverlay() {
@@ -825,19 +846,31 @@ cameraSwitchBtn.addEventListener('click', function() {
 });
 
 cameraShutterBtn.addEventListener('click', function() {
-    // Capture frame from video
+    // Capture frame from video, cropped to A4 ratio
     var vw = cameraVideo.videoWidth;
     var vh = cameraVideo.videoHeight;
     if (!vw || !vh) {
         showCameraError('Camera is not ready yet. Please wait a moment and try again.');
         return;
     }
-    cameraCanvas.width = vw;
-    cameraCanvas.height = vh;
+    // Crop to A4 ratio (210:297) from center
+    var a4Ratio = 210 / 297;
+    var cropW, cropH;
+    if (vw / vh > a4Ratio) {
+        cropH = vh;
+        cropW = Math.round(vh * a4Ratio);
+    } else {
+        cropW = vw;
+        cropH = Math.round(vw / a4Ratio);
+    }
+    var sx = Math.round((vw - cropW) / 2);
+    var sy = Math.round((vh - cropH) / 2);
+    cameraCanvas.width = cropW;
+    cameraCanvas.height = cropH;
     var ctx = cameraCanvas.getContext('2d');
-    ctx.drawImage(cameraVideo, 0, 0, vw, vh);
+    ctx.drawImage(cameraVideo, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
 
-    applyScannerFilter(ctx, vw, vh);
+    applyScannerFilter(ctx, cropW, cropH);
 
     closeCameraOverlay();
 

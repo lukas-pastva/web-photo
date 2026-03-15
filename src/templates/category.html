@@ -163,6 +163,7 @@
               <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" class="btn btn-outline-primary btn-xs" download title="Source">L</a>
               <a href="{{ url_for('download_single', category=category, size='largest', filename=file.filename) }}" class="btn btn-outline-info btn-xs" download title="Large">M</a>
               <a href="{{ url_for('download_single', category=category, size='medium', filename=file.filename) }}" class="btn btn-outline-secondary btn-xs" download title="Medium">S</a>
+              <a href="{{ url_for('download_single_pdf', category=category, size='largest', filename=file.filename) }}" class="btn btn-outline-danger btn-xs" download title="PDF"><i class="fas fa-file-pdf"></i></a>
             </div>
             <form action="{{ url_for('delete_photo', category=category, filename=file.filename) }}" method="post" class="mb-0 delete-form" data-filename="{{ file.filename }}">
               <button type="submit" class="btn btn-outline-danger btn-xs" title="Delete"><i class="fas fa-trash-alt"></i></button>

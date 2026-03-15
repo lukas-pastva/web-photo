@@ -1099,6 +1099,49 @@ def download_single(category, size, filename):
         abort(404)
     return send_file(file_path, as_attachment=True, download_name=filename)
 
+
+@app.route('/download_single_pdf/<category>/<size>/<filename>')
+def download_single_pdf(category, size, filename):
+    valid_sizes = ['source', 'largest', 'medium']
+    if size not in valid_sizes:
+        abort(404)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], category, size, filename)
+    if not os.path.exists(file_path):
+        abort(404)
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas as pdf_canvas
+
+    try:
+        img = Image.open(file_path)
+        if img.mode not in ('RGB', 'L'):
+            img = img.convert('RGB')
+        img_w, img_h = img.size
+        pw, ph = A4
+        scale = min(pw / img_w, ph / img_h)
+        draw_w, draw_h = img_w * scale, img_h * scale
+        x = (pw - draw_w) / 2
+        y = (ph - draw_h) / 2
+
+        img_buf = io.BytesIO()
+        img.save(img_buf, format='JPEG', quality=95)
+        img_buf.seek(0)
+
+        pdf_buf = io.BytesIO()
+        c = pdf_canvas.Canvas(pdf_buf, pagesize=A4)
+        img_reader = ImageReader(img_buf)
+        c.drawImage(img_reader, x, y, draw_w, draw_h, preserveAspectRatio=True)
+        c.save()
+        pdf_buf.seek(0)
+
+        pdf_name = os.path.splitext(filename)[0] + '.pdf'
+        return send_file(pdf_buf, mimetype='application/pdf', as_attachment=True, download_name=pdf_name)
+    except Exception as e:
+        logger.error(f'PDF conversion failed for {filename}: {e}')
+        abort(500)
+
+
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_size_error(e):
     return jsonify({'status': 'fail', 'message': 'File too large. The server or reverse proxy rejected the upload. Check your nginx/ingress body size limits.'}), 413

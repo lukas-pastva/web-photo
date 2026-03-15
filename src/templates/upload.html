@@ -21,11 +21,21 @@
         <button type="button" class="btn btn-outline-primary btn-block" id="takePhotoBtn">
             <i class="fas fa-camera"></i> Take Photo
         </button>
+        <!-- Hidden file input fallback for camera capture -->
+        <input type="file" id="cameraFallbackInput" accept="image/*" capture="environment" style="display:none;">
     </div>
 
     <!-- Full-screen camera overlay -->
     <div id="cameraOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:9999; flex-direction:column;">
         <video id="cameraVideo" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+        <!-- Camera error message -->
+        <div id="cameraError" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; text-align:center; padding:20px; max-width:90%;">
+            <i class="fas fa-exclamation-triangle fa-2x mb-3" style="color:#ffc107;"></i>
+            <div id="cameraErrorMsg" style="font-size:16px; margin-bottom:16px;"></div>
+            <button type="button" id="cameraFallbackBtn" class="btn btn-outline-light">
+                <i class="fas fa-camera"></i> Use System Camera Instead
+            </button>
+        </div>
         <div style="position:absolute; bottom:0; left:0; right:0; padding:20px 16px env(safe-area-inset-bottom, 16px); display:flex; justify-content:space-between; align-items:center; background:linear-gradient(transparent, rgba(0,0,0,0.7));">
             <button type="button" id="cameraCancelBtn" style="background:none; border:none; color:#fff; font-size:17px; padding:12px 16px;">Cancel</button>
             <button type="button" id="cameraShutterBtn" style="width:72px; height:72px; border-radius:50%; border:4px solid #fff; background:rgba(255,255,255,0.3); cursor:pointer; flex-shrink:0;"></button>
@@ -607,7 +617,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
     xhr.send(formData);
 });
 
-// === Take Photo with Camera (getUserMedia) ===
+// === Take Photo with Camera ===
 var takePhotoBtn = document.getElementById('takePhotoBtn');
 var cameraOverlay = document.getElementById('cameraOverlay');
 var cameraVideo = document.getElementById('cameraVideo');
@@ -615,6 +625,10 @@ var cameraCanvas = document.getElementById('cameraCanvas');
 var cameraShutterBtn = document.getElementById('cameraShutterBtn');
 var cameraCancelBtn = document.getElementById('cameraCancelBtn');
 var cameraSwitchBtn = document.getElementById('cameraSwitchBtn');
+var cameraError = document.getElementById('cameraError');
+var cameraErrorMsg = document.getElementById('cameraErrorMsg');
+var cameraFallbackBtn = document.getElementById('cameraFallbackBtn');
+var cameraFallbackInput = document.getElementById('cameraFallbackInput');
 var filenameModal = $('#filenameModal');
 var filenameDateInput = document.getElementById('filenameDate');
 var filenameSuffixInput = document.getElementById('filenameSuffix');
@@ -625,6 +639,7 @@ var capturedExt = '.jpg';
 var cameraPhotoCounter = 1;
 var cameraStream = null;
 var useFrontCamera = false;
+var hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 
 function stopCameraStream() {
     if (cameraStream) {
@@ -634,8 +649,22 @@ function stopCameraStream() {
     cameraVideo.srcObject = null;
 }
 
+function showCameraError(msg) {
+    cameraErrorMsg.textContent = msg;
+    cameraError.style.display = 'block';
+    cameraShutterBtn.style.display = 'none';
+    cameraSwitchBtn.style.display = 'none';
+}
+
+function hideCameraError() {
+    cameraError.style.display = 'none';
+    cameraShutterBtn.style.display = '';
+    cameraSwitchBtn.style.display = '';
+}
+
 async function startCamera() {
     stopCameraStream();
+    hideCameraError();
     var constraints = {
         video: {
             facingMode: useFrontCamera ? 'user' : 'environment',
@@ -649,13 +678,25 @@ async function startCamera() {
         cameraVideo.srcObject = cameraStream;
         await cameraVideo.play();
     } catch (err) {
-        alert('Could not access camera: ' + err.message);
-        closeCameraOverlay();
+        var msg = 'Could not access camera.';
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            msg = 'Camera permission was denied. Please allow camera access in your browser settings and try again.';
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            msg = 'No camera found on this device.';
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+            msg = 'Camera is in use by another app. Close other camera apps and try again.';
+        } else if (err.name === 'OverconstrainedError') {
+            msg = 'Camera does not support the requested settings.';
+        } else {
+            msg = 'Could not access camera: ' + (err.message || err.name);
+        }
+        showCameraError(msg);
     }
 }
 
 function openCameraOverlay() {
     cameraOverlay.style.display = 'flex';
+    hideCameraError();
     startCamera();
 }
 
@@ -664,9 +705,60 @@ function closeCameraOverlay() {
     stopCameraStream();
 }
 
+// Use system file input as fallback (triggers native camera app)
+function triggerFallbackCamera() {
+    closeCameraOverlay();
+    cameraFallbackInput.click();
+}
+
 takePhotoBtn.addEventListener('click', function() {
     if (isUploading) return;
-    openCameraOverlay();
+    if (hasGetUserMedia) {
+        openCameraOverlay();
+    } else {
+        // getUserMedia not available (HTTP site, old browser, etc.) — use native camera
+        cameraFallbackInput.click();
+    }
+});
+
+// Handle photos from the fallback file input (native camera)
+cameraFallbackInput.addEventListener('change', function() {
+    if (!this.files || !this.files[0]) return;
+    var file = this.files[0];
+    capturedFile = file;
+    capturedExt = '.' + (file.name.split('.').pop() || 'jpg').toLowerCase();
+    if (capturedExt === '.' + file.name.toLowerCase()) capturedExt = '.jpg';
+
+    // Generate date prefix YYMMDD
+    var now = new Date();
+    var yy = String(now.getFullYear()).slice(-2);
+    var mm = String(now.getMonth() + 1).padStart(2, '0');
+    var dd = String(now.getDate()).padStart(2, '0');
+    var datePrefix = yy + mm + dd;
+    var suffix = String(cameraPhotoCounter).padStart(2, '0');
+
+    filenameDateInput.value = datePrefix;
+    filenameSuffixInput.value = suffix;
+    updateFilenamePreview();
+
+    // Show preview from file
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        cameraPreviewImg.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+
+    filenameModal.modal('show');
+    filenameModal.one('shown.bs.modal', function() {
+        filenameSuffixInput.focus();
+        filenameSuffixInput.select();
+    });
+    // Reset so same file can be re-selected
+    this.value = '';
+});
+
+cameraFallbackBtn.addEventListener('click', function() {
+    triggerFallbackCamera();
 });
 
 cameraCancelBtn.addEventListener('click', function() {
@@ -682,6 +774,10 @@ cameraShutterBtn.addEventListener('click', function() {
     // Capture frame from video
     var vw = cameraVideo.videoWidth;
     var vh = cameraVideo.videoHeight;
+    if (!vw || !vh) {
+        showCameraError('Camera is not ready yet. Please wait a moment and try again.');
+        return;
+    }
     cameraCanvas.width = vw;
     cameraCanvas.height = vh;
     var ctx = cameraCanvas.getContext('2d');

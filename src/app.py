@@ -849,7 +849,7 @@ def download_pdf(category):
     if not os.path.exists(images_dir):
         return jsonify({'status': 'fail', 'message': 'Size not found.'}), 404
 
-    image_filenames = sorted([f for f in os.listdir(images_dir) if os.path.splitext(f)[1].lower() not in VIDEO_EXTENSIONS])
+    image_filenames = sorted([f for f in os.listdir(images_dir) if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS])
     if not image_filenames:
         return jsonify({'status': 'fail', 'message': 'No images to download.'}), 404
 
@@ -859,6 +859,8 @@ def download_pdf(category):
             file_path = os.path.join(images_dir, filename)
             try:
                 img = Image.open(file_path)
+                if img.mode not in ('RGB', 'L'):
+                    img = img.convert('RGB')
                 img_w, img_h = img.size
                 pw, ph = page_size
                 scale = min(pw / img_w, ph / img_h)
@@ -866,9 +868,14 @@ def download_pdf(category):
                 x = (pw - draw_w) / 2
                 y = (ph - draw_h) / 2
 
+                # Convert to JPEG in memory for reportlab compatibility
+                img_buf = io.BytesIO()
+                img.save(img_buf, format='JPEG', quality=95)
+                img_buf.seek(0)
+
                 pdf_buf = io.BytesIO()
                 c = pdf_canvas.Canvas(pdf_buf, pagesize=page_size)
-                img_reader = ImageReader(file_path)
+                img_reader = ImageReader(img_buf)
                 c.drawImage(img_reader, x, y, draw_w, draw_h, preserveAspectRatio=True)
                 c.save()
                 pdf_buf.seek(0)

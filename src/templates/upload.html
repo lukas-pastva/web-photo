@@ -619,6 +619,47 @@ document.getElementById('uploadForm').addEventListener('submit', function(event)
     xhr.send(formData);
 });
 
+// Document scanner filter: adaptive threshold for clean B&W scanned look
+function applyScannerFilter(ctx, w, h) {
+    var imageData = ctx.getImageData(0, 0, w, h);
+    var d = imageData.data;
+    var gray = new Uint8Array(w * h);
+    for (var i = 0; i < d.length; i += 4) {
+        gray[i >> 2] = Math.round(0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]);
+    }
+    // Integral image for fast block-mean adaptive threshold
+    var integral = new Float64Array(w * h);
+    for (var y = 0; y < h; y++) {
+        var rowSum = 0;
+        for (var x = 0; x < w; x++) {
+            var idx = y * w + x;
+            rowSum += gray[idx];
+            integral[idx] = rowSum + (y > 0 ? integral[idx - w] : 0);
+        }
+    }
+    var blockSize = Math.max(15, Math.round(Math.min(w, h) / 20)) | 1;
+    var halfBlock = blockSize >> 1;
+    var C = 12;
+    for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+            var x1 = Math.max(0, x - halfBlock);
+            var y1 = Math.max(0, y - halfBlock);
+            var x2 = Math.min(w - 1, x + halfBlock);
+            var y2 = Math.min(h - 1, y + halfBlock);
+            var area = (x2 - x1 + 1) * (y2 - y1 + 1);
+            var sum = integral[y2 * w + x2];
+            if (x1 > 0) sum -= integral[y2 * w + (x1 - 1)];
+            if (y1 > 0) sum -= integral[(y1 - 1) * w + x2];
+            if (x1 > 0 && y1 > 0) sum += integral[(y1 - 1) * w + (x1 - 1)];
+            var mean = sum / area;
+            var px = (y * w + x) << 2;
+            var val = gray[y * w + x] > (mean - C) ? 255 : 0;
+            d[px] = d[px+1] = d[px+2] = val;
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+}
+
 // === Take Photo with Camera ===
 var takePhotoBtn = document.getElementById('takePhotoBtn');
 var cameraOverlay = document.getElementById('cameraOverlay');
@@ -735,18 +776,34 @@ cameraFallbackInput.addEventListener('change', function() {
     filenameSuffixInput.value = suffix;
     updateFilenamePreview();
 
-    // Show preview from file
-    var reader = new FileReader();
-    reader.onload = function(e) {
-        cameraPreviewImg.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+    // Apply scanner filter to the fallback photo
+    var img = new Image();
+    img.onload = function() {
+        cameraCanvas.width = img.width;
+        cameraCanvas.height = img.height;
+        var ctx = cameraCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        applyScannerFilter(ctx, img.width, img.height);
 
-    filenameModal.modal('show');
-    filenameModal.one('shown.bs.modal', function() {
-        filenameSuffixInput.focus();
-        filenameSuffixInput.select();
-    });
+        // Update preview with filtered image
+        var filteredDataUrl = cameraCanvas.toDataURL('image/jpeg', 0.92);
+        cameraPreviewImg.src = filteredDataUrl;
+
+        // Replace capturedFile with filtered version
+        cameraCanvas.toBlob(function(blob) {
+            if (blob) {
+                capturedFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+                capturedExt = '.jpg';
+            }
+        }, 'image/jpeg', 0.92);
+
+        filenameModal.modal('show');
+        filenameModal.one('shown.bs.modal', function() {
+            filenameSuffixInput.focus();
+            filenameSuffixInput.select();
+        });
+    };
+    img.src = URL.createObjectURL(file);
     // Reset so same file can be re-selected
     this.value = '';
 });
@@ -776,6 +833,8 @@ cameraShutterBtn.addEventListener('click', function() {
     cameraCanvas.height = vh;
     var ctx = cameraCanvas.getContext('2d');
     ctx.drawImage(cameraVideo, 0, 0, vw, vh);
+
+    applyScannerFilter(ctx, vw, vh);
 
     closeCameraOverlay();
 

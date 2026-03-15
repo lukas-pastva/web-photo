@@ -138,7 +138,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 let wakeLock = null;
 let isUploading = false;
@@ -980,4 +982,4 @@ document.getElementById('filenameConfirmBtn').addEventListener('click', function
     capturedFile = null;
 });
 </script>
-{% endblock %}
+{% endblock scripts %}

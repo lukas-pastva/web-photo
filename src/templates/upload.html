@@ -18,9 +18,15 @@
 
     <!-- Take Photo button -->
     <div class="mt-2 mb-3">
-        <button type="button" class="btn btn-outline-primary btn-block" id="takePhotoBtn">
-            <i class="fas fa-camera"></i> Take Photo
-        </button>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <button type="button" class="btn btn-outline-primary btn-block" id="takePhotoBtn" style="flex:1;">
+                <i class="fas fa-camera"></i> Take Photo
+            </button>
+            <label style="display:flex; align-items:center; gap:6px; margin:0; white-space:nowrap; cursor:pointer; user-select:none;">
+                <input type="checkbox" id="scanModeToggle" checked>
+                <span class="small text-muted"><i class="fas fa-file-alt"></i> Scan</span>
+            </label>
+        </div>
         <!-- Hidden file input fallback for camera capture -->
         <input type="file" id="cameraFallbackInput" accept="image/*" capture="environment" style="display:none;">
     </div>
@@ -677,6 +683,7 @@ var cameraError = document.getElementById('cameraError');
 var cameraErrorMsg = document.getElementById('cameraErrorMsg');
 var cameraFallbackBtn = document.getElementById('cameraFallbackBtn');
 var cameraFallbackInput = document.getElementById('cameraFallbackInput');
+var scanModeToggle = document.getElementById('scanModeToggle');
 var filenameModal = $('#filenameModal');
 var filenameDateInput = document.getElementById('filenameDate');
 var filenameSuffixInput = document.getElementById('filenameSuffix');
@@ -756,7 +763,13 @@ function openCameraOverlay() {
     cameraOverlay.style.display = 'flex';
     hideCameraError();
     startCamera();
-    setTimeout(sizeA4Guide, 100);
+    var guide = document.getElementById('a4Guide');
+    if (scanModeToggle.checked) {
+        guide.style.display = '';
+        setTimeout(sizeA4Guide, 100);
+    } else {
+        guide.style.display = 'none';
+    }
 }
 
 function closeCameraOverlay() {
@@ -800,20 +813,22 @@ cameraFallbackInput.addEventListener('change', function() {
     filenameSuffixInput.value = suffix;
     updateFilenamePreview();
 
-    // Apply scanner filter to the fallback photo
     var img = new Image();
     img.onload = function() {
         cameraCanvas.width = img.width;
         cameraCanvas.height = img.height;
         var ctx = cameraCanvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
-        applyScannerFilter(ctx, img.width, img.height);
 
-        // Update preview with filtered image
-        var filteredDataUrl = cameraCanvas.toDataURL('image/jpeg', 0.92);
-        cameraPreviewImg.src = filteredDataUrl;
+        if (scanModeToggle.checked) {
+            applyScannerFilter(ctx, img.width, img.height);
+        }
 
-        // Replace capturedFile with filtered version
+        // Update preview
+        var dataUrl = cameraCanvas.toDataURL('image/jpeg', 0.92);
+        cameraPreviewImg.src = dataUrl;
+
+        // Replace capturedFile with processed version
         cameraCanvas.toBlob(function(blob) {
             if (blob) {
                 capturedFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
@@ -846,31 +861,41 @@ cameraSwitchBtn.addEventListener('click', function() {
 });
 
 cameraShutterBtn.addEventListener('click', function() {
-    // Capture frame from video, cropped to A4 ratio
     var vw = cameraVideo.videoWidth;
     var vh = cameraVideo.videoHeight;
     if (!vw || !vh) {
         showCameraError('Camera is not ready yet. Please wait a moment and try again.');
         return;
     }
-    // Crop to A4 ratio (210:297) from center
-    var a4Ratio = 210 / 297;
-    var cropW, cropH;
-    if (vw / vh > a4Ratio) {
-        cropH = vh;
-        cropW = Math.round(vh * a4Ratio);
+    var isScanMode = scanModeToggle.checked;
+    var cropW, cropH, sx, sy;
+    if (isScanMode) {
+        // Crop to A4 ratio (210:297) from center
+        var a4Ratio = 210 / 297;
+        if (vw / vh > a4Ratio) {
+            cropH = vh;
+            cropW = Math.round(vh * a4Ratio);
+        } else {
+            cropW = vw;
+            cropH = Math.round(vw / a4Ratio);
+        }
+        sx = Math.round((vw - cropW) / 2);
+        sy = Math.round((vh - cropH) / 2);
     } else {
+        // Full frame, no crop
         cropW = vw;
-        cropH = Math.round(vw / a4Ratio);
+        cropH = vh;
+        sx = 0;
+        sy = 0;
     }
-    var sx = Math.round((vw - cropW) / 2);
-    var sy = Math.round((vh - cropH) / 2);
     cameraCanvas.width = cropW;
     cameraCanvas.height = cropH;
     var ctx = cameraCanvas.getContext('2d');
     ctx.drawImage(cameraVideo, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
 
-    applyScannerFilter(ctx, cropW, cropH);
+    if (isScanMode) {
+        applyScannerFilter(ctx, cropW, cropH);
+    }
 
     closeCameraOverlay();
 

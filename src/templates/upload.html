@@ -26,6 +26,10 @@
                 <input type="checkbox" id="scanModeToggle" checked>
                 <span class="small text-muted"><i class="fas fa-file-alt"></i> Scan</span>
             </label>
+            <label style="display:flex; align-items:center; gap:6px; margin:0; white-space:nowrap; cursor:pointer; user-select:none;">
+                <input type="checkbox" id="autoWhiteToggle">
+                <span class="small text-muted"><i class="fas fa-adjust"></i> White</span>
+            </label>
         </div>
         <!-- Hidden file input fallback for camera capture -->
         <input type="file" id="cameraFallbackInput" accept="image/*" capture="environment" style="display:none;">
@@ -671,6 +675,66 @@ function applyScannerFilter(ctx, w, h) {
     ctx.putImageData(imageData, 0, 0);
 }
 
+// Auto-white filter: detects paper background and normalizes it to white
+// while preserving ink/text contrast
+function applyAutoWhiteFilter(ctx, w, h) {
+    var imageData = ctx.getImageData(0, 0, w, h);
+    var d = imageData.data;
+    var n = w * h;
+
+    // Sample brightness values to find the paper (background) tone
+    // Use the 90th percentile of brightness as the "paper" level
+    var sampleStep = Math.max(1, Math.floor(n / 10000)); // sample ~10k pixels
+    var brightnesses = [];
+    for (var i = 0; i < n; i += sampleStep) {
+        var p = i << 2;
+        brightnesses.push(0.299 * d[p] + 0.587 * d[p+1] + 0.114 * d[p+2]);
+    }
+    brightnesses.sort(function(a, b) { return a - b; });
+    var paperLevel = brightnesses[Math.floor(brightnesses.length * 0.9)];
+
+    // If paper is already very bright, only a small correction is needed
+    if (paperLevel < 10) return; // avoid division by near-zero
+
+    // Scale factor to push paper level to 255
+    // Cap at 2x to avoid blowing out images that have no paper
+    var scale = Math.min(255 / paperLevel, 2.0);
+
+    // Per-channel: find the 90th percentile per channel for color cast removal
+    var rVals = [], gVals = [], bVals = [];
+    for (var i = 0; i < n; i += sampleStep) {
+        var p = i << 2;
+        var lum = 0.299 * d[p] + 0.587 * d[p+1] + 0.114 * d[p+2];
+        // Only sample bright pixels (likely paper) for color cast
+        if (lum > paperLevel * 0.7) {
+            rVals.push(d[p]);
+            gVals.push(d[p+1]);
+            bVals.push(d[p+2]);
+        }
+    }
+    rVals.sort(function(a, b) { return a - b; });
+    gVals.sort(function(a, b) { return a - b; });
+    bVals.sort(function(a, b) { return a - b; });
+
+    var p90 = function(arr) { return arr.length ? arr[Math.floor(arr.length * 0.9)] : 255; };
+    var rPaper = p90(rVals) || 1;
+    var gPaper = p90(gVals) || 1;
+    var bPaper = p90(bVals) || 1;
+
+    // Per-channel scale to normalize paper to white
+    var rScale = Math.min(255 / rPaper, 2.0);
+    var gScale = Math.min(255 / gPaper, 2.0);
+    var bScale = Math.min(255 / bPaper, 2.0);
+
+    // Apply with a slight gamma curve to enhance contrast on dark areas
+    for (var i = 0; i < d.length; i += 4) {
+        d[i]   = Math.min(255, Math.round(d[i]   * rScale));
+        d[i+1] = Math.min(255, Math.round(d[i+1] * gScale));
+        d[i+2] = Math.min(255, Math.round(d[i+2] * bScale));
+    }
+    ctx.putImageData(imageData, 0, 0);
+}
+
 // === Take Photo with Camera ===
 var takePhotoBtn = document.getElementById('takePhotoBtn');
 var cameraOverlay = document.getElementById('cameraOverlay');
@@ -684,6 +748,16 @@ var cameraErrorMsg = document.getElementById('cameraErrorMsg');
 var cameraFallbackBtn = document.getElementById('cameraFallbackBtn');
 var cameraFallbackInput = document.getElementById('cameraFallbackInput');
 var scanModeToggle = document.getElementById('scanModeToggle');
+var autoWhiteToggle = document.getElementById('autoWhiteToggle');
+
+// Restore auto-white toggle state from localStorage
+if (localStorage.getItem('autoWhiteEnabled') === 'true') {
+    autoWhiteToggle.checked = true;
+}
+autoWhiteToggle.addEventListener('change', function() {
+    localStorage.setItem('autoWhiteEnabled', this.checked ? 'true' : 'false');
+});
+
 var filenameModal = $('#filenameModal');
 var filenameDateInput = document.getElementById('filenameDate');
 var filenameSuffixInput = document.getElementById('filenameSuffix');
@@ -820,6 +894,9 @@ cameraFallbackInput.addEventListener('change', function() {
         var ctx = cameraCanvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
 
+        if (autoWhiteToggle.checked) {
+            applyAutoWhiteFilter(ctx, img.width, img.height);
+        }
         if (scanModeToggle.checked) {
             applyScannerFilter(ctx, img.width, img.height);
         }
@@ -902,13 +979,11 @@ cameraShutterBtn.addEventListener('click', function() {
     cameraCanvas.width = cropW;
     cameraCanvas.height = cropH;
     var ctx = cameraCanvas.getContext('2d');
-    if (isScanMode) {
-        // Boost brightness ~5% for scan mode (white paper appears grey otherwise)
-        ctx.filter = 'brightness(1.05)';
-    }
     ctx.drawImage(cameraVideo, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
-    ctx.filter = 'none';
 
+    if (autoWhiteToggle.checked) {
+        applyAutoWhiteFilter(ctx, cropW, cropH);
+    }
     if (isScanMode) {
         applyScannerFilter(ctx, cropW, cropH);
     }

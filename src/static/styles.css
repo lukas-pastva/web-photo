@@ -188,6 +188,24 @@ a:hover { color: var(--link-color); opacity: 0.85; }
     margin-bottom: 0.4rem;
 }
 
+/* ===== Photo filename label (desktop only) ===== */
+.photo-filename-label {
+    display: none;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    padding: 2px 6px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-color, #333);
+    background: var(--card-bg, #f8f8f8);
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+@media (min-width: 768px) {
+    .photo-filename-label { display: block; }
+}
+
 /* ===== Media cards (gallery) ===== */
 .media-card {
     overflow: hidden;

@@ -137,6 +137,7 @@
       {% for file in images %}
       <div class="col-4 col-sm-3 col-md-3 col-lg-2 gallery-item-col" data-date="{{ file.meta.get('date', '') }}" data-filename="{{ file.filename }}">
         <div class="card media-card">
+          <div class="photo-filename-label">{{ file.filename }}</div>
           <a href="{{ url_for('uploaded_file', filename=category + '/largest/' + file.filename) }}"
              data-pswp-title="{{ file.filename }}"
              data-pswp-width="{{ file.width }}"

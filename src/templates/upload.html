@@ -870,17 +870,28 @@ cameraShutterBtn.addEventListener('click', function() {
     var isScanMode = scanModeToggle.checked;
     var cropW, cropH, sx, sy;
     if (isScanMode) {
-        // Crop to A4 ratio (210:297) from center
+        // Calculate visible video area due to object-fit:cover
+        var containerW = cameraVideo.clientWidth;
+        var containerH = cameraVideo.clientHeight;
+        var scaleX = containerW / vw;
+        var scaleY = containerH / vh;
+        var scale = Math.max(scaleX, scaleY);
+        var visibleW = containerW / scale;
+        var visibleH = containerH / scale;
+        var offsetX = (vw - visibleW) / 2;
+        var offsetY = (vh - visibleH) / 2;
+
+        // Match the A4 guide: 90% of visible area with A4 ratio
         var a4Ratio = 210 / 297;
-        if (vw / vh > a4Ratio) {
-            cropH = vh;
-            cropW = Math.round(vh * a4Ratio);
+        if (visibleH * a4Ratio <= visibleW) {
+            cropH = Math.round(visibleH * 0.9);
+            cropW = Math.round(cropH * a4Ratio);
         } else {
-            cropW = vw;
-            cropH = Math.round(vw / a4Ratio);
+            cropW = Math.round(visibleW * 0.9);
+            cropH = Math.round(cropW / a4Ratio);
         }
-        sx = Math.round((vw - cropW) / 2);
-        sy = Math.round((vh - cropH) / 2);
+        sx = Math.round(offsetX + (visibleW - cropW) / 2);
+        sy = Math.round(offsetY + (visibleH - cropH) / 2);
     } else {
         // Full frame, no crop
         cropW = vw;
@@ -891,7 +902,12 @@ cameraShutterBtn.addEventListener('click', function() {
     cameraCanvas.width = cropW;
     cameraCanvas.height = cropH;
     var ctx = cameraCanvas.getContext('2d');
+    if (isScanMode) {
+        // Boost brightness ~5% for scan mode (white paper appears grey otherwise)
+        ctx.filter = 'brightness(1.05)';
+    }
     ctx.drawImage(cameraVideo, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+    ctx.filter = 'none';
 
     if (isScanMode) {
         applyScannerFilter(ctx, cropW, cropH);

@@ -22,7 +22,7 @@
     <a href="{{ url_for('download_videos', category=category) }}" class="btn btn-outline-warning btn-sm download-btn" title="Videos">
         <i class="fas fa-download"></i> Vids
     </a>
-    <button class="btn btn-outline-danger btn-sm" title="Download as PDF" data-toggle="modal" data-target="#pdfModal">
+    <button id="pdf-toggle" class="btn btn-outline-danger btn-sm" title="Select photos for PDF">
         <i class="fas fa-file-pdf"></i> PDF
     </button>
     <button id="sort-toggle" class="btn btn-outline-secondary btn-sm" title="Sort by date">
@@ -63,57 +63,52 @@
     </div>
 </div>
 
+<!-- PDF selection bar (hidden by default) -->
+<div id="pdf-bar" class="move-bar mb-2" style="display:none;">
+    <div class="d-flex align-items-center flex-wrap" style="gap:0.4rem;">
+        <span class="text-muted" style="font-size:0.8rem;" id="pdf-count">0 selected</span>
+        <button id="pdf-select-all" class="btn btn-outline-secondary btn-sm" style="font-size:0.8rem;">
+            <i class="fas fa-check-double"></i> All
+        </button>
+        <button id="pdf-deselect-all" class="btn btn-outline-secondary btn-sm" style="font-size:0.8rem;">
+            <i class="fas fa-times"></i> None
+        </button>
+        <select id="pdf-size" class="form-control form-control-sm" style="width:auto;max-width:120px;font-size:0.8rem;">
+            <option value="source">Original</option>
+            <option value="largest" selected>Large</option>
+            <option value="medium">Medium</option>
+        </select>
+        <select id="pdf-paper" class="form-control form-control-sm" style="width:auto;max-width:140px;font-size:0.8rem;">
+            <optgroup label="Portrait">
+                <option value="A3">A3</option>
+                <option value="A4" selected>A4</option>
+                <option value="A5">A5</option>
+                <option value="Letter">Letter</option>
+                <option value="Legal">Legal</option>
+            </optgroup>
+            <optgroup label="Landscape">
+                <option value="A3-L">A3 Landscape</option>
+                <option value="A4-L">A4 Landscape</option>
+                <option value="A5-L">A5 Landscape</option>
+                <option value="Letter-L">Letter Landscape</option>
+                <option value="Legal-L">Legal Landscape</option>
+            </optgroup>
+        </select>
+        <button id="pdf-generate" class="btn btn-danger btn-sm" disabled style="font-size:0.8rem;">
+            <i class="fas fa-file-pdf"></i> Generate PDF
+        </button>
+        <button id="pdf-cancel" class="btn btn-secondary btn-sm" style="font-size:0.8rem;">
+            Cancel
+        </button>
+    </div>
+</div>
+
 <!-- Download overlay -->
 <div class="download-overlay" id="download-overlay">
     <div class="download-overlay-content">
         <div class="spinner-border text-primary" role="status"></div>
         <p class="mt-2 mb-0" id="download-overlay-text">Preparing download...</p>
     </div>
-</div>
-
-<!-- PDF Download Modal -->
-<div class="modal fade" id="pdfModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-sm" role="document">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title">Download as PDF</h6>
-        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-      </div>
-      <div class="modal-body py-2">
-        <div class="form-group mb-2">
-          <label class="small mb-1">Image quality</label>
-          <select id="pdf-size" class="form-control form-control-sm">
-            <option value="source">Original</option>
-            <option value="largest" selected>Large</option>
-            <option value="medium">Medium</option>
-          </select>
-        </div>
-        <div class="form-group mb-2">
-          <label class="small mb-1">Paper size</label>
-          <select id="pdf-paper" class="form-control form-control-sm">
-            <optgroup label="Portrait">
-              <option value="A3">A3</option>
-              <option value="A4" selected>A4</option>
-              <option value="A5">A5</option>
-              <option value="Letter">Letter</option>
-              <option value="Legal">Legal</option>
-            </optgroup>
-            <optgroup label="Landscape">
-              <option value="A3-L">A3 Landscape</option>
-              <option value="A4-L">A4 Landscape</option>
-              <option value="A5-L">A5 Landscape</option>
-              <option value="Letter-L">Letter Landscape</option>
-              <option value="Legal-L">Legal Landscape</option>
-            </optgroup>
-          </select>
-        </div>
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-danger btn-sm" id="pdf-download-btn"><i class="fas fa-file-pdf"></i> Download</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- Media Tabs -->
@@ -159,6 +154,7 @@
               </div>
           </a>
           <input type="checkbox" class="move-checkbox" data-filename="{{ file.filename }}" style="display:none;">
+          <input type="checkbox" class="pdf-checkbox" data-filename="{{ file.filename }}" style="display:none;">
           <div class="card-actions">
             <div class="btn-group btn-group-sm" role="group">
               <a href="{{ url_for('download_single', category=category, size='source', filename=file.filename) }}" class="btn btn-outline-primary btn-xs" download title="Source">L</a>
@@ -269,6 +265,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var CATEGORY = {{ category | tojson }};
+    var pdfMode = false;
     var deleteForms = document.querySelectorAll('.delete-form');
     var dialog = document.getElementById('delete-confirmation-dialog');
     var dialogText = document.getElementById('dialog-text');
@@ -315,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     galleryLinks.forEach(function(link, index) {
         link.addEventListener('click', function(e) {
-            if (moveMode) return e.preventDefault();
+            if (moveMode || pdfMode) return e.preventDefault();
             e.preventDefault();
             var gallery = new PhotoSwipe(pswpElement, uiElement, items, {
                 index: index,
@@ -404,42 +401,128 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // ===== PDF download =====
-    document.getElementById('pdf-download-btn').addEventListener('click', function() {
+    // ===== PDF selection mode =====
+    var pdfToggle = document.getElementById('pdf-toggle');
+    var pdfBar = document.getElementById('pdf-bar');
+    var pdfCount = document.getElementById('pdf-count');
+    var pdfGenerate = document.getElementById('pdf-generate');
+    var pdfCancel = document.getElementById('pdf-cancel');
+
+    function updatePdfCount() {
+        var checked = document.querySelectorAll('.pdf-checkbox:checked').length;
+        pdfCount.textContent = checked + ' selected';
+        pdfGenerate.disabled = checked === 0;
+        document.querySelectorAll('.pdf-checkbox').forEach(function(cb) {
+            var col = cb.closest('.gallery-item-col');
+            if (col) col.classList.toggle('move-selected', cb.checked);
+        });
+    }
+
+    function enterPdfMode() {
+        if (moveMode) exitMoveMode();
+        pdfMode = true;
+        pdfBar.style.display = '';
+        pdfToggle.classList.add('active');
+        document.querySelectorAll('.pdf-checkbox').forEach(function(cb) {
+            cb.style.display = '';
+            cb.checked = false;
+        });
+        document.querySelectorAll('.gallery-item-col').forEach(function(col) {
+            col.classList.add('move-mode');
+        });
+        updatePdfCount();
+    }
+
+    function exitPdfMode() {
+        pdfMode = false;
+        pdfBar.style.display = 'none';
+        pdfToggle.classList.remove('active');
+        document.querySelectorAll('.pdf-checkbox').forEach(function(cb) {
+            cb.style.display = 'none';
+            cb.checked = false;
+        });
+        document.querySelectorAll('.gallery-item-col').forEach(function(col) {
+            col.classList.remove('move-mode');
+        });
+    }
+
+    pdfToggle.addEventListener('click', function() {
+        if (pdfMode) exitPdfMode();
+        else enterPdfMode();
+    });
+    pdfCancel.addEventListener('click', function() { exitPdfMode(); });
+
+    document.getElementById('pdf-select-all').addEventListener('click', function() {
+        document.querySelectorAll('.pdf-checkbox').forEach(function(cb) { cb.checked = true; });
+        updatePdfCount();
+    });
+    document.getElementById('pdf-deselect-all').addEventListener('click', function() {
+        document.querySelectorAll('.pdf-checkbox').forEach(function(cb) { cb.checked = false; });
+        updatePdfCount();
+    });
+
+    document.querySelectorAll('.gallery-item-col').forEach(function(col) {
+        col.addEventListener('click', function(e) {
+            if (!pdfMode) return;
+            if (e.target.closest('.card-actions') || e.target.closest('.pdf-checkbox') || e.target.closest('.move-checkbox')) return;
+            var cb = col.querySelector('.pdf-checkbox');
+            if (cb) {
+                cb.checked = !cb.checked;
+                updatePdfCount();
+            }
+        });
+    });
+
+    document.querySelectorAll('.pdf-checkbox').forEach(function(cb) {
+        cb.addEventListener('change', updatePdfCount);
+    });
+
+    pdfGenerate.addEventListener('click', function() {
+        var selected = [];
+        document.querySelectorAll('.pdf-checkbox:checked').forEach(function(cb) {
+            selected.push(cb.getAttribute('data-filename'));
+        });
+        if (!selected.length) return;
+
         var size = document.getElementById('pdf-size').value;
         var paper = document.getElementById('pdf-paper').value;
-        var url = "{{ url_for('download_pdf', category=category) }}" + "?size=" + size + "&paper=" + encodeURIComponent(paper);
-        $('#pdfModal').modal('hide');
-        overlayText.textContent = 'Generating PDFs...';
+
+        exitPdfMode();
+        overlayText.textContent = 'Generating PDF (' + selected.length + ' pages)...';
         overlay.classList.add('active');
-        fetch(url)
-            .then(function(resp) {
-                if (!resp.ok) throw new Error('Download failed');
-                var disposition = resp.headers.get('Content-Disposition') || '';
-                var match = disposition.match(/filename="?([^";\n]+)"?/);
-                var filename = match ? match[1] : 'photos_pdf.zip';
-                return resp.blob().then(function(blob) { return { blob: blob, filename: filename }; });
-            })
-            .then(function(result) {
-                var a = document.createElement('a');
-                a.href = URL.createObjectURL(result.blob);
-                a.download = result.filename;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(a.href);
-                overlay.classList.remove('active');
-            })
-            .catch(function() {
-                overlayText.textContent = 'PDF download failed.';
-                setTimeout(function() { overlay.classList.remove('active'); }, 2000);
-            });
+
+        fetch("{{ url_for('download_multipage_pdf', category=category) }}", {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ filenames: selected, size: size, paper: paper })
+        })
+        .then(function(resp) {
+            if (!resp.ok) throw new Error('Download failed');
+            var disposition = resp.headers.get('Content-Disposition') || '';
+            var match = disposition.match(/filename="?([^";\n]+)"?/);
+            var filename = match ? match[1] : CATEGORY + '.pdf';
+            return resp.blob().then(function(blob) { return { blob: blob, filename: filename }; });
+        })
+        .then(function(result) {
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(result.blob);
+            a.download = result.filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(a.href);
+            overlay.classList.remove('active');
+        })
+        .catch(function() {
+            overlayText.textContent = 'PDF generation failed.';
+            setTimeout(function() { overlay.classList.remove('active'); }, 2000);
+        });
     });
 
     // ===== Video poster -> player =====
     document.querySelectorAll('.video-poster').forEach(function(container) {
         container.addEventListener('click', function() {
-            if (moveMode) return;
+            if (moveMode || pdfMode) return;
             var src = container.getAttribute('data-video-src');
             if (!src) return;
             var video = document.createElement('video');
@@ -507,7 +590,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var newLink = link.cloneNode(true);
             link.parentNode.replaceChild(newLink, link);
             newLink.addEventListener('click', function(e) {
-                if (moveMode) return e.preventDefault();
+                if (moveMode || pdfMode) return e.preventDefault();
                 e.preventDefault();
                 var gallery = new PhotoSwipe(pswpElement, uiElement, items, {
                     index: index, bgOpacity: 0.9, showHideOpacity: true, preload: [1,1]
@@ -546,6 +629,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function enterMoveMode() {
+        // Exit PDF mode if active
+        if (pdfMode) {
+            pdfMode = false;
+            document.getElementById('pdf-bar').style.display = 'none';
+            document.getElementById('pdf-toggle').classList.remove('active');
+            document.querySelectorAll('.pdf-checkbox').forEach(function(cb) { cb.style.display = 'none'; cb.checked = false; });
+            document.querySelectorAll('.gallery-item-col').forEach(function(col) { col.classList.remove('move-mode'); });
+        }
         moveMode = true;
         moveBar.style.display = '';
         moveToggle.classList.add('active');
@@ -724,7 +815,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var toggled = new Set();
 
         container.addEventListener('touchstart', function(e) {
-            if (!moveMode) return;
+            if (!moveMode && !pdfMode) return;
             if (e.touches.length !== 1) return;
             var touch = e.touches[0];
             startX = touch.clientX;
@@ -735,11 +826,12 @@ document.addEventListener('DOMContentLoaded', function() {
             toggled.clear();
 
             // Determine action from first card under finger
+            var cbClass = pdfMode ? '.pdf-checkbox' : '.move-checkbox';
             var el = document.elementFromPoint(touch.clientX, touch.clientY);
             if (el) {
                 var col = el.closest('.gallery-item-col');
                 if (col) {
-                    var cb = col.querySelector('.move-checkbox');
+                    var cb = col.querySelector(cbClass);
                     if (cb) {
                         dragAction = cb.checked ? 'deselect' : 'select';
                     }
@@ -748,22 +840,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }, {passive: true});
 
         container.addEventListener('touchmove', function(e) {
-            if (!dragging || !moveMode) return;
+            if (!dragging || (!moveMode && !pdfMode)) return;
             var touch = e.touches[0];
             if (!directionLocked) {
                 var dx = Math.abs(touch.clientX - startX);
                 var dy = Math.abs(touch.clientY - startY);
-                // Wait for enough movement to determine direction
                 if (dx < 10 && dy < 10) return;
                 directionLocked = true;
                 isHorizontal = dx > dy;
                 if (!isHorizontal) {
-                    // Vertical drag — let the browser scroll normally
                     dragging = false;
                     return;
                 }
             }
-            // Horizontal drag — do drag-to-select, suppress scroll
             e.preventDefault();
             var el = document.elementFromPoint(touch.clientX, touch.clientY);
             if (!el) return;
@@ -772,10 +861,11 @@ document.addEventListener('DOMContentLoaded', function() {
             var fname = col.getAttribute('data-filename');
             if (!fname || toggled.has(fname)) return;
             toggled.add(fname);
-            var cb = col.querySelector('.move-checkbox');
+            var cbClass = pdfMode ? '.pdf-checkbox' : '.move-checkbox';
+            var cb = col.querySelector(cbClass);
             if (cb) {
                 cb.checked = (dragAction === 'select');
-                updateMoveCount();
+                if (pdfMode) updatePdfCount(); else updateMoveCount();
             }
         }, {passive: false});
 

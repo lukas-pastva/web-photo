@@ -889,6 +889,79 @@ def download_pdf(category):
     zip_buffer.seek(0)
     return send_file(zip_buffer, mimetype='application/zip', as_attachment=True, download_name=f'{category}_pdf_{paper}.zip')
 
+@app.route('/download_multipage_pdf/<category>', methods=['POST'])
+def download_multipage_pdf(category):
+    data = request.get_json() or {}
+    filenames = data.get('filenames', [])
+    size = data.get('size', 'largest')
+    paper = data.get('paper', 'A4')
+
+    valid_sizes = ['source', 'largest', 'medium']
+    if size not in valid_sizes:
+        return jsonify({'status': 'fail', 'message': 'Invalid size parameter.'}), 400
+
+    from reportlab.lib.pagesizes import A4, A3, A5, letter, legal, landscape
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen import canvas as pdf_canvas
+
+    paper_sizes = {
+        'A3': A3, 'A4': A4, 'A5': A5,
+        'Letter': letter, 'Legal': legal,
+        'A3-L': landscape(A3), 'A4-L': landscape(A4), 'A5-L': landscape(A5),
+        'Letter-L': landscape(letter), 'Legal-L': landscape(legal),
+    }
+    page_size = paper_sizes.get(paper, A4)
+
+    images_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, size)
+    if not os.path.exists(images_dir):
+        return jsonify({'status': 'fail', 'message': 'Size not found.'}), 404
+
+    if not filenames:
+        # If no filenames provided, use all images
+        filenames = sorted([f for f in os.listdir(images_dir) if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS])
+
+    if not filenames:
+        return jsonify({'status': 'fail', 'message': 'No images selected.'}), 404
+
+    pdf_buf = io.BytesIO()
+    c = pdf_canvas.Canvas(pdf_buf, pagesize=page_size)
+    pw, ph = page_size
+    page_count = 0
+
+    for filename in filenames:
+        file_path = os.path.join(images_dir, secure_filename(filename))
+        if not os.path.exists(file_path):
+            continue
+        try:
+            img = Image.open(file_path)
+            if img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
+            img_w, img_h = img.size
+            scale = min(pw / img_w, ph / img_h)
+            draw_w, draw_h = img_w * scale, img_h * scale
+            x = (pw - draw_w) / 2
+            y = (ph - draw_h) / 2
+
+            img_io = io.BytesIO()
+            img.save(img_io, format='JPEG', quality=95)
+            img_io.seek(0)
+
+            if page_count > 0:
+                c.showPage()
+            img_reader = ImageReader(img_io)
+            c.drawImage(img_reader, x, y, draw_w, draw_h, preserveAspectRatio=True)
+            page_count += 1
+        except Exception as e:
+            logger.error(f'PDF page failed for {filename}: {e}')
+            continue
+
+    if page_count == 0:
+        return jsonify({'status': 'fail', 'message': 'No images could be processed.'}), 500
+
+    c.save()
+    pdf_buf.seek(0)
+    return send_file(pdf_buf, mimetype='application/pdf', as_attachment=True, download_name=f'{category}.pdf')
+
 @app.route('/download_videos/<category>')
 def download_videos(category):
     source_dir = os.path.join(app.config['UPLOAD_FOLDER'], category, 'source')
